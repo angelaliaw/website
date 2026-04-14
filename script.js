@@ -1,4 +1,4 @@
-// Define switchTab globally
+// Global navigation helper
 window.switchTab = (tabName) => {
     const targetId = `section-${tabName.toLowerCase().trim()}`;
     const targetSection = document.getElementById(targetId);
@@ -10,23 +10,21 @@ window.switchTab = (tabName) => {
             if (li.querySelector('span').innerText.toLowerCase().trim() === tabName.toLowerCase().trim()) li.classList.add('active');
         });
         window.dispatchEvent(new Event('resize'));
-        // Trigger UI update when switching tabs to ensure data is fresh
-        if (typeof window.triggerUIUpdate === 'function') window.triggerUIUpdate();
+        if (window.triggerUIUpdate) window.triggerUIUpdate();
     }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. State Management ---
+    // --- 1. Data State ---
     const defaultStocks = [
         { symbol: '2330.TW', name: 'TSMC', price: 820.00, change: 1.25 },
-        { symbol: '2317.TW', name: 'Hon Hai', price: 155.50, change: -0.50 },
-        { symbol: '2454.TW', name: 'MediaTek', price: 1050.00, change: 2.15 }
+        { symbol: '2317.TW', name: 'Hon Hai', price: 155.50, change: -0.50 }
     ];
 
     const defaultExpenses = [
         { date: '2026-03-28', category: 'Housing', amount: 2800, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Rent', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() },
         { date: '2026-04-14', category: 'Food & Dining', amount: 1650, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Groceries', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() },
-        { date: '2026-04-15', category: 'Others', amount: 5000, type: 'INC', currency: 'TWD', account: 'Fuban', memo: 'Salary Bonus', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() }
+        { date: '2026-04-15', category: 'Others', amount: 15000, type: 'INC', currency: 'TWD', account: 'Fuban', memo: 'Salary', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() }
     ];
 
     let state = {
@@ -41,190 +39,163 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('wp_expenses', JSON.stringify(state.expenses));
     };
 
-    // --- 2. Chart Initialization ---
+    // --- 2. Charting ---
     let spendingChart, allocationChart, detailedSpendingChart;
-    const chartColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#f43f5e', '#6366f1'];
+    const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#f43f5e', '#6366f1'];
     
     const initCharts = () => {
-        const ctxPortfolio = document.getElementById('portfolioHistoryChart')?.getContext('2d');
-        if (ctxPortfolio) {
-            new Chart(ctxPortfolio, {
+        // Portfolio Line Chart
+        const ctxP = document.getElementById('portfolioHistoryChart')?.getContext('2d');
+        if (ctxP) {
+            new Chart(ctxP, {
                 type: 'line',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
-                    datasets: [{
-                        label: 'Value',
-                        data: [780000, 950000, 1050000, 1120000, 1080000, 1250000, 1380000, 1420000, 1350000, 1485720],
-                        borderColor: '#10b981', tension: 0.4, fill: true, backgroundColor: 'rgba(16, 185, 129, 0.1)'
-                    }]
-                },
+                data: { labels: ['Q1', 'Q2', 'Q3', 'Q4'], datasets: [{ label: 'TWD', data: [750000, 950000, 1120000, 1485720], borderColor: '#10b981', tension: 0.4 }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
             });
         }
 
-        const ctxSpending = document.getElementById('spendingDonutChart')?.getContext('2d');
-        if (ctxSpending) {
-            const currentMonthData = getFilteredAggregate('current');
-            spendingChart = new Chart(ctxSpending, {
+        // Home Overview Donut
+        const ctxS = document.getElementById('spendingDonutChart')?.getContext('2d');
+        if (ctxS) {
+            spendingChart = new Chart(ctxS, {
                 type: 'doughnut',
-                data: {
-                    labels: Object.keys(currentMonthData),
-                    datasets: [{
-                        data: Object.values(currentMonthData),
-                        backgroundColor: chartColors,
-                        borderWidth: 0
-                    }]
-                },
+                data: { labels: [], datasets: [{ data: [], backgroundColor: colors, borderWidth: 0 }] },
                 options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
             });
         }
 
-        const ctxDetailed = document.getElementById('detailedSpendingChart')?.getContext('2d');
-        if (ctxDetailed) {
-            detailedSpendingChart = new Chart(ctxDetailed, {
+        // Detailed Report Pie Chart
+        const ctxD = document.getElementById('detailedSpendingChart')?.getContext('2d');
+        if (ctxD) {
+            detailedSpendingChart = new Chart(ctxD, {
                 type: 'pie',
-                data: { labels: [], datasets: [{ data: [], backgroundColor: chartColors, borderWidth: 0 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 } } } } }
-            });
-        }
-
-        const ctxAlloc = document.getElementById('allocationChart')?.getContext('2d');
-        if (ctxAlloc) {
-            allocationChart = new Chart(ctxAlloc, {
-                type: 'bar',
-                data: {
-                    labels: ['Stocks', 'ETFs', 'Cash', 'Bonds'],
-                    datasets: [{ label: 'Allocation %', data: [65, 20, 10, 5], backgroundColor: '#3b82f6', borderRadius: 8 }]
-                },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-                    plugins: { legend: { display: false } },
-                    scales: { x: { grid: { display: false } }, y: { grid: { display: false } } }
-                }
+                data: { labels: [], datasets: [{ data: [], backgroundColor: colors, borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } } }
             });
         }
     };
 
-    // --- 3. Data Filtering & Aggregation ---
-    const getFilteredAggregate = (monthFilter = 'all', yearFilter = 'all', categoryFilter = 'all') => {
-        const totals = {};
+    // --- 3. Logic & Filtering ---
+    const getAggregatedData = (yF, mF, cF) => {
         const now = new Date();
         const curM = (now.getMonth() + 1).toString().padStart(2, '0');
         const curY = now.getFullYear().toString();
-
+        const totals = {};
+        
         state.expenses.forEach(ex => {
             if (ex.type !== 'EXP') return;
             const [y, m] = ex.date.split('-');
-            
-            if (yearFilter !== 'all' && y !== yearFilter) return;
-            if (monthFilter === 'current') { if (m !== curM || y !== curY) return; }
-            else if (monthFilter !== 'all' && m !== monthFilter) return;
-            if (categoryFilter !== 'all' && ex.category !== categoryFilter) return;
-
+            if (yF !== 'all' && y !== yF) return;
+            if (mF === 'current') { if (m !== curM || y !== curY) return; }
+            else if (mF !== 'all' && m !== mF) return;
+            if (cF !== 'all' && ex.category !== cF) return;
             totals[ex.category] = (totals[ex.category] || 0) + parseFloat(ex.amount);
         });
         return totals;
     };
 
-    const calculateFilteredStats = (yFilter, mFilter, cFilter) => {
+    const getStats = (yF, mF, cF) => {
         const now = new Date();
         const curM = (now.getMonth() + 1).toString().padStart(2, '0');
         const curY = now.getFullYear().toString();
-        
-        let totalExp = 0, totalInc = 0;
+        let inc = 0, exp = 0;
+
         state.expenses.forEach(ex => {
             const [y, m] = ex.date.split('-');
-            const yearMatch = (yFilter === 'all') || (y === yFilter);
-            const monthMatch = (mFilter === 'all') || (mFilter === 'current' && m === curM && y === curY) || (m === mFilter);
-            const catMatch = (cFilter === 'all') || (ex.category === cFilter);
+            const yM = (yF === 'all') || (y === yF);
+            const mM = (mF === 'all') || (mF === 'current' && m === curM && y === curY) || (m === mF);
+            const cM = (cF === 'all') || (ex.category === cF);
             
-            if (yearMatch && monthMatch && catMatch) {
-                if (ex.type === 'INC') totalInc += parseFloat(ex.amount);
-                else totalExp += parseFloat(ex.amount);
+            if (yM && mM && cM) {
+                if (ex.type === 'INC') inc += parseFloat(ex.amount);
+                else exp += parseFloat(ex.amount);
             }
         });
-        return { totalExp, net: totalInc - totalExp };
+        return { inc, exp, net: inc - exp };
     };
 
-    // --- 4. UI Updates ---
+    // --- 4. Main UI Update ---
     window.triggerUIUpdate = () => {
-        // Overview Summary
-        const curMonthStats = calculateFilteredStats('all', 'current', 'all');
-        const netEl = document.getElementById('net-income-value');
-        if (netEl) {
-            netEl.textContent = (curMonthStats.net >= 0 ? '+' : '') + '$' + curMonthStats.net.toLocaleString();
-            netEl.style.color = curMonthStats.net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
+        const yF = document.getElementById('filter-year')?.value || 'all';
+        const mF = document.getElementById('filter-month')?.value || 'all';
+        const cF = document.getElementById('filter-category')?.value || 'all';
+
+        // Update Stats Sidebar
+        const stats = getStats(yF, mF, cF);
+        const setVal = (id, val, color) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = '$' + val.toLocaleString();
+                if (color) el.style.color = color;
+            }
+        };
+        setVal('stats-total-exp', stats.exp, 'var(--accent-ruby)');
+        setVal('stats-total-inc', stats.inc, 'var(--accent-emerald)');
+        setVal('stats-net-income', stats.net, stats.net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)');
+
+        // Update Overview Net worth / Income
+        const curMonthStats = getStats('all', 'current', 'all');
+        const netOv = document.getElementById('net-income-value');
+        if (netOv) {
+            netOv.textContent = (curMonthStats.net >= 0 ? '+' : '') + '$' + curMonthStats.net.toLocaleString();
+            netOv.style.color = curMonthStats.net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
         }
 
-        const totalNetWorth = 1485720 + curMonthStats.net;
-        const nwEl = document.getElementById('total-net-worth');
-        if (nwEl) nwEl.textContent = '$' + totalNetWorth.toLocaleString();
-
-        // Overview Chart
+        // Update Charts
         if (spendingChart) {
-            const data = getFilteredAggregate('current');
+            const data = getAggregatedData('all', 'current', 'all');
             spendingChart.data.labels = Object.keys(data);
             spendingChart.data.datasets[0].data = Object.values(data);
             spendingChart.update();
-            document.getElementById('total-spending-value').textContent = '$' + Object.values(data).reduce((a,b)=>a+b,0).toLocaleString();
+            const homeSpent = document.getElementById('total-spending-value');
+            if (homeSpent) homeSpent.textContent = '$' + Object.values(data).reduce((a,b)=>a+b,0).toLocaleString();
         }
 
-        renderTransactionLists();
-        renderStocks();
-        updateAdminVisibility();
-    };
+        if (detailedSpendingChart) {
+            const data = getAggregatedData(yF, mF, cF);
+            detailedSpendingChart.data.labels = Object.keys(data);
+            detailedSpendingChart.data.datasets[0].data = Object.values(data);
+            detailedSpendingChart.update();
+        }
 
-    const renderTransactionLists = () => {
-        const miniList = document.getElementById('transaction-list');
+        // Update Table
         const fullList = document.getElementById('full-transaction-list');
-        
-        if (miniList) {
-            miniList.innerHTML = '';
-            state.expenses.filter(ex => ex.type === 'EXP').slice(-5).reverse().forEach(ex => {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td>$${parseFloat(ex.amount).toLocaleString()}</td>
-                    <td class="admin-only"><button class="remove-btn" onclick="window.removeTransaction(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
-                miniList.appendChild(row);
-            });
-        }
-
         if (fullList) {
-            const yFilter = document.getElementById('filter-year').value;
-            const mFilter = document.getElementById('filter-month').value;
-            const cFilter = document.getElementById('filter-category').value;
+            const now = new Date();
+            const curM = (now.getMonth() + 1).toString().padStart(2, '0');
+            const curY = now.getFullYear().toString();
             
-            const stats = calculateFilteredStats(yFilter, mFilter, cFilter);
-            document.getElementById('stats-total-exp').textContent = '$' + stats.totalExp.toLocaleString();
-            const netStatEl = document.getElementById('stats-net-income');
-            netStatEl.textContent = (stats.net >= 0 ? '+' : '') + '$' + stats.net.toLocaleString();
-            netStatEl.style.color = stats.net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
-
-            // Update Detailed Pie Chart
-            if (detailedSpendingChart) {
-                const aggData = getFilteredAggregate(mFilter, yFilter, cFilter);
-                detailedSpendingChart.data.labels = Object.keys(aggData);
-                detailedSpendingChart.data.datasets[0].data = Object.values(aggData);
-                detailedSpendingChart.update();
-            }
-
             const filtered = state.expenses.filter(ex => {
-                const now = new Date();
                 const [y, m] = ex.date.split('-');
-                const yMatch = (yFilter === 'all') || (y === yFilter);
-                const mMatch = (mFilter === 'all') || (mFilter === 'current' && m === (now.getMonth()+1).toString().padStart(2,'0') && y === now.getFullYear().toString()) || (m === mFilter);
-                const cMatch = (cFilter === 'all') || (ex.category === cFilter);
-                return yMatch && mMatch && cMatch;
+                if (yF !== 'all' && y !== yF) return false;
+                if (mF === 'current') { if (m !== curM || y !== curY) return false; }
+                else if (mF !== 'all' && m !== mF) return false;
+                if (cF !== 'all' && ex.category !== cF) return false;
+                return true;
             });
 
             fullList.innerHTML = '';
             filtered.reverse().forEach(ex => {
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td class="${ex.type === 'EXP' ? 'negative' : 'positive'}">${ex.type === 'EXP' ? '-' : '+'}$${parseFloat(ex.amount).toLocaleString()}</td>
-                    <td>${ex.account}</td><td>${ex.memo}</td><td>${ex.type}</td>
+                    <td>${ex.account}</td><td>${ex.memo}</td>
                     <td class="admin-only"><button class="remove-btn" onclick="window.removeTransaction(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
                 fullList.appendChild(row);
             });
         }
+
+        const miniList = document.getElementById('transaction-list');
+        if (miniList) {
+            miniList.innerHTML = '';
+            state.expenses.filter(e => e.type === 'EXP').slice(-5).reverse().forEach(ex => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td>$${parseFloat(ex.amount).toLocaleString()}</td><td class="admin-only"><button class="remove-btn" onclick="window.removeTransaction(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
+                miniList.appendChild(row);
+            });
+        }
+
+        renderStocks();
+        updateAdminVisibility();
         lucide.createIcons();
     };
 
@@ -232,51 +203,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const list = document.getElementById('stock-list');
         if (!list) return;
         list.innerHTML = '';
-        state.stocks.forEach((stock, index) => {
+        state.stocks.forEach((s, i) => {
             const row = document.createElement('tr');
-            const changeClass = stock.change >= 0 ? 'positive' : 'negative';
-            const changeSign = stock.change >= 0 ? '+' : '';
-            row.innerHTML = `
-                <td><div class="symbol-cell"><div class="symbol-icon">${stock.symbol.split('.')[0]}</div><div class="symbol-info"><strong>${stock.symbol}</strong><br><small>${stock.name}</small></div></div></td>
-                <td>$${parseFloat(stock.price).toFixed(2)}</td><td class="trend ${changeClass}">${changeSign}${stock.change}%</td>
-                <td class="admin-only"><button class="remove-btn" onclick="window.removeStock(${index})"><i data-lucide="trash-2"></i></button></td>
-            `;
+            row.innerHTML = `<td><div class="symbol-cell"><div class="symbol-info"><strong>${s.symbol}</strong><br><small>${s.name}</small></div></div></td>
+                <td>$${s.price.toFixed(2)}</td><td class="trend ${s.change >= 0 ? 'positive' : 'negative'}">${s.change >= 0 ? '+' : ''}${s.change}%</td>
+                <td class="admin-only"><button class="remove-btn" onclick="window.removeStock(${i})"><i data-lucide="trash-2"></i></button></td>`;
             list.appendChild(row);
         });
-        lucide.createIcons();
-    };
-
-    // --- 5. Global Helpers & Admin ---
-    window.removeTransaction = (index) => {
-        if (!state.isAdmin) return;
-        if (confirm("Remove transaction?")) { state.expenses.splice(index, 1); saveState(); window.triggerUIUpdate(); }
-    };
-    window.removeStock = (index) => {
-        if (!state.isAdmin) return;
-        if (confirm("Remove stock?")) { state.stocks.splice(index, 1); saveState(); renderStocks(); }
     };
 
     const updateAdminVisibility = () => {
-        const adminElements = document.querySelectorAll('.admin-only');
-        adminElements.forEach(el => el.style.display = state.isAdmin ? (el.tagName === 'TD' || el.tagName === 'TH' ? 'table-cell' : 'flex') : 'none');
-        const lockBtn = document.getElementById('admin-lock-btn');
-        if (lockBtn) {
-            lockBtn.classList.toggle('unlocked', state.isAdmin);
-            const icon = lockBtn.querySelector('i');
-            if (icon) { icon.setAttribute('data-lucide', state.isAdmin ? 'unlock' : 'lock'); lucide.createIcons(); }
+        const els = document.querySelectorAll('.admin-only');
+        els.forEach(el => el.style.display = state.isAdmin ? (el.tagName === 'TD' ? 'table-cell' : 'flex') : 'none');
+        const lock = document.getElementById('admin-lock-btn');
+        if (lock) {
+            lock.classList.toggle('unlocked', state.isAdmin);
+            lock.querySelector('i')?.setAttribute('data-lucide', state.isAdmin ? 'unlock' : 'lock');
+            lucide.createIcons();
         }
     };
 
+    window.removeTransaction = (idx) => { if (state.isAdmin && confirm("Delete?")) { state.expenses.splice(idx,1); saveState(); window.triggerUIUpdate(); } };
+    window.removeStock = (idx) => { if (state.isAdmin && confirm("Delete?")) { state.stocks.splice(idx,1); saveState(); window.triggerUIUpdate(); } };
+
+    // --- 5. Event Binding ---
     document.getElementById('admin-lock-btn').onclick = () => {
         if (state.isAdmin) state.isAdmin = false;
-        else if (prompt("Passcode: (1234)") === "1234") state.isAdmin = true;
-        updateAdminVisibility(); renderTransactionLists(); renderStocks();
+        else if (prompt("Pass: 1234") === "1234") state.isAdmin = true;
+        window.triggerUIUpdate();
     };
 
-    // --- 6. Event Handling ---
-    document.getElementById('filter-year').onchange = window.triggerUIUpdate;
-    document.getElementById('filter-month').onchange = window.triggerUIUpdate;
-    document.getElementById('filter-category').onchange = window.triggerUIUpdate;
+    ['filter-year', 'filter-month', 'filter-category'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.onchange = window.triggerUIUpdate;
+    });
 
     document.getElementById('csv-upload')?.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -288,36 +248,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const newEx = [];
             for (let i = 1; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
-                const v = lines[i].split(',').map(c => c.trim());
+                const v = lines[i].split(',').map(cell => cell.trim());
                 const entry = {}; headers.forEach((h, idx) => entry[h] = v[idx]);
                 newEx.push({ date: entry['Date'] || '', category: entry['Category'] || 'Others', amount: parseFloat(entry['Amount']) || 0, currency: entry['Currency'] || 'TWD', account: entry['Account'] || 'Default', type: entry['Income&Exp'] || 'EXP', memo: entry['Memo'] || '', lastUpdated: Date.now(), uuidCode: entry['UUID'] || self.crypto.randomUUID() });
             }
             state.expenses = [...state.expenses, ...newEx];
-            saveState(); window.triggerUIUpdate(); alert(`Imported ${newEx.length} records!`);
+            saveState(); window.triggerUIUpdate(); alert("Done!");
         };
         reader.readAsText(file);
     });
 
-    document.getElementById('expense-form').onsubmit = (e) => {
-        e.preventDefault();
-        state.expenses.push({ date: document.getElementById('expense-date').value, category: document.getElementById('expense-category').value, amount: parseFloat(document.getElementById('expense-amount').value), type: document.getElementById('expense-type').value, account: document.getElementById('expense-account').value, memo: document.getElementById('expense-memo').value, lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() });
-        saveState(); window.triggerUIUpdate(); document.getElementById('expense-modal').classList.remove('active'); e.target.reset();
-    };
-
-    document.getElementById('stock-form').onsubmit = (e) => {
-        e.preventDefault();
-        state.stocks.push({ symbol: document.getElementById('stock-symbol').value.toUpperCase() + '.TW', name: document.getElementById('stock-name').value, price: 100 + Math.random() * 500, change: 0 });
-        saveState(); renderStocks(); document.getElementById('stock-modal').classList.remove('active'); e.target.reset();
-    };
-
-    // --- Init ---
-    initCharts(); window.triggerUIUpdate();
+    // --- 6. Final Init ---
+    initCharts();
+    window.triggerUIUpdate();
     document.querySelectorAll('.nav-links li').forEach(li => li.onclick = () => window.switchTab(li.querySelector('span').innerText));
     document.getElementById('refresh-stocks').onclick = async () => {
-        const btn = document.getElementById('refresh-stocks'); btn.classList.add('loading');
+        const b = document.getElementById('refresh-stocks'); b.classList.add('loading');
         await new Promise(r => setTimeout(r, 1000));
-        state.stocks = state.stocks.map(s => ({ ...s, price: s.price * (1 + (Math.random() * 0.02 - 0.01)), change: (Math.random() * 2 - 1).toFixed(2) }));
-        saveState(); renderStocks(); btn.classList.remove('loading');
-        document.getElementById('last-updated').textContent = `Updated: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        state.stocks = state.stocks.map(s => ({ ...s, price: s.price * (1 + (Math.random()*0.02-0.01)), change: (Math.random()*2-1).toFixed(2) }));
+        saveState(); window.triggerUIUpdate(); b.classList.remove('loading');
     };
 });
