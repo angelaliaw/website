@@ -58,10 +58,22 @@
                             <h3>Total Net Worth</h3>
                             <div class="icon-circle"><i data-lucide="dollar-sign"></i></div>
                         </div>
-                        <div class="balance">$1,485,720.50</div>
+                        <div class="balance" id="total-net-worth">$1,485,720.50</div>
                         <div class="trend positive">
                             <i data-lucide="arrow-up-right"></i>
                             <span>+3.2% vs last month</span>
+                        </div>
+                    </div>
+
+                    <!-- Net Income Card -->
+                    <div class="card summary-card glass">
+                        <div class="card-header">
+                            <h3>Net Income (This Month)</h3>
+                            <div class="icon-circle"><i data-lucide="wallet"></i></div>
+                        </div>
+                        <div class="balance" id="net-income-value">$0.00</div>
+                        <div class="trend" id="net-income-trend">
+                            <span>Income - Expenses</span>
                         </div>
                     </div>
     
@@ -84,7 +96,7 @@
                     <div class="card breakdown-card glass">
                         <div class="card-header">
                             <div class="header-main">
-                                <h3>Spending</h3>
+                                <h3>Spending (This Month)</h3>
                                 <div class="view-toggles">
                                     <button class="toggle-btn active" data-view="chart" title="Chart View"><i data-lucide="pie-chart"></i></button>
                                     <button class="toggle-btn" data-view="list" title="List View"><i data-lucide="list"></i></button>
@@ -181,10 +193,39 @@
             <div id="section-spending" class="view-section">
                 <div class="card glass full-width">
                     <div class="card-header">
-                        <h2>Detailed Spending Report</h2>
+                        <h2>Spending Reports</h2>
+                        <div class="header-actions">
+                            <div class="filters">
+                                <select id="filter-month">
+                                    <option value="all">All Months</option>
+                                    <option value="current">Current Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <select id="filter-category">
+                                    <option value="all">All Categories</option>
+                                    <option value="Housing">Housing</option>
+                                    <option value="Food & Dining">Food & Dining</option>
+                                    <option value="Entertainment">Entertainment</option>
+                                    <option value="Transport">Transport</option>
+                                    <option value="Utilities">Utilities</option>
+                                    <option value="Others">Others</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                     <!-- Large Transaction Table -->
-                    <div class="table-wrapper">
+                    <div class="table-wrapper" style="max-height: 600px;">
                          <table class="transaction-table full-table">
                             <thead>
                                 <tr>

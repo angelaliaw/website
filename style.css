@@ -635,3 +635,32 @@ body {
     color: var(--accent-emerald);
     background: rgba(16, 185, 129, 0.1);
 }
+
+.filters {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.filters select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    outline: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.filters select:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.summary-card .balance {
+    font-size: 1.8rem;
+}
+
+@media (max-width: 1400px) {
+    .summary-card { grid-column: span 3; }
+}
