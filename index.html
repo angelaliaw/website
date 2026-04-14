@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WealthPulse | Personal Financial Report</title>
+    <meta name="description" content="A premium personal financial dashboard for tracking stocks, spending, and assets.">
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar/Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span>WealthPulse</span>
+            </div>
+            <ul class="nav-links">
+                <li class="active"><i data-lucide="layout-dashboard"></i> <span>Overview</span></li>
+                <li><i data-lucide="trending-up"></i> <span>Investments</span></li>
+                <li><i data-lucide="wallet"></i> <span>Spending</span></li>
+                <li><i data-lucide="home"></i> <span>Property</span></li>
+                <li><i data-lucide="settings"></i> <span>Settings</span></li>
+            </ul>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="search-bar">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Search markets or spending...">
+                </div>
+                <div class="user-profile">
+                    <i data-lucide="bell" class="icon-btn"></i>
+                    <div class="avatar">AR</div>
+                    <span class="username">Alex R.</span>
+                    <i data-lucide="chevron-down"></i>
+                </div>
+            </header>
+
+            <section class="dashboard-grid">
+                <!-- Hero Summary -->
+                <div class="card summary-card glass">
+                    <div class="card-header">
+                        <h3>Total Net Worth</h3>
+                        <div class="icon-circle"><i data-lucide="dollar-sign"></i></div>
+                    </div>
+                    <div class="balance">$1,485,720.50</div>
+                    <div class="trend positive">
+                        <i data-lucide="arrow-up-right"></i>
+                        <span>+3.2% vs last month</span>
+                    </div>
+                </div>
+
+                <!-- Portfolio Chart -->
+                <div class="card chart-card glass portfolio-chart">
+                    <div class="card-header">
+                        <h3>Portfolio Growth</h3>
+                        <div class="time-filters">
+                            <button class="active">1Y</button>
+                            <button>6M</button>
+                            <button>1M</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="portfolioHistoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Spending Breakdown -->
+                <div class="card breakdown-card glass">
+                    <div class="card-header">
+                        <div class="header-main">
+                            <h3>Spending</h3>
+                            <div class="view-toggles">
+                                <button class="toggle-btn active" data-view="chart"><i data-lucide="pie-chart"></i></button>
+                                <button class="toggle-btn" data-view="list"><i data-lucide="list"></i></button>
+                            </div>
+                        </div>
+                        <div class="header-actions">
+                            <button class="icon-btn" id="export-csv" title="Export CSV">
+                                <i data-lucide="download"></i>
+                            </button>
+                            <label for="csv-upload" class="icon-btn" title="Import CSV">
+                                <i data-lucide="file-up"></i>
+                                <input type="file" id="csv-upload" accept=".csv" style="display: none;">
+                            </label>
+                            <button class="add-btn" id="add-expense-btn"><i data-lucide="plus"></i></button>
+                        </div>
+                    </div>
+                    <div class="view-container">
+                        <div id="spending-chart-view" class="spending-view active">
+                            <div class="chart-container donut-container">
+                                <canvas id="spendingDonutChart"></canvas>
+                            </div>
+                        </div>
+                        <div id="spending-list-view" class="spending-view">
+                            <div class="table-wrapper mini-table">
+                                <table class="transaction-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Category</th>
+                                            <th>Amount</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="transaction-list">
+                                        <!-- Populated by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="total-spending">
+                        <span class="label">Total Spending</span>
+                        <span class="value" id="total-spending-value">$0.00</span>
+                    </div>
+                </div>
+
+                <!-- Market Watchlist -->
+                <div class="card watchlist-card glass">
+                    <div class="card-header">
+                        <h3>Market Watchlist</h3>
+                        <div class="header-actions">
+                            <span id="last-updated" style="font-size: 0.7rem; color: var(--text-secondary); margin-right: 0.5rem;"></span>
+                            <button class="icon-btn" id="refresh-stocks" title="Auto-fetch latest prices">
+                                <i data-lucide="refresh-cw"></i>
+                            </button>
+                            <button class="add-btn" id="add-stock-btn">
+                                <i data-lucide="plus"></i> Add Stock
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="watchlist-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Price</th>
+                                    <th>Change %</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-list">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Real Estate -->
+                <div class="card property-card glass">
+                    <div class="card-header">
+                        <h3>Real Estate</h3>
+                        <div class="icon-circle"><i data-lucide="home"></i></div>
+                    </div>
+                    <div class="property-details">
+                        <div class="property-val">$845,000</div>
+                        <div class="trend positive">+0.7% Month</div>
+                    </div>
+                    <div class="property-info">Updated: Oct 30 • 12599 Property Ave.</div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Modals -->
+    <div id="expense-modal" class="modal">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Add Transaction</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="expense-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="expense-date">Date</label>
+                        <input type="date" id="expense-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-type">Type</label>
+                        <select id="expense-type">
+                            <option value="EXP">Expense</option>
+                            <option value="INC">Income</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="expense-category">Category</label>
+                        <select id="expense-category" required>
+                            <option value="Housing">Housing</option>
+                            <option value="Food & Dining">Food & Dining</option>
+                            <option value="Entertainment">Entertainment</option>
+                            <option value="Transport">Transport</option>
+                            <option value="Utilities">Utilities</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-amount">Amount</label>
+                        <input type="number" id="expense-amount" step="0.01" required placeholder="0.00">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="expense-currency">Currency</label>
+                        <input type="text" id="expense-currency" value="TWD">
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-account">Account</label>
+                        <input type="text" id="expense-account" placeholder="e.g. Fuban">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="expense-memo">Memo</label>
+                    <input type="text" id="expense-memo" placeholder="Description...">
+                </div>
+                <button type="submit" class="submit-btn" id="expense-submit-btn">Save Transaction</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="stock-modal" class="modal">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Add To Watchlist</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="stock-form">
+                <div class="form-group">
+                    <label for="stock-symbol">Stock Symbol</label>
+                    <input type="text" id="stock-symbol" required placeholder="e.g. MSFT" style="text-transform: uppercase;">
+                </div>
+                <div class="form-group">
+                    <label for="stock-name">Company Name</label>
+                    <input type="text" id="stock-name" required placeholder="e.g. Microsoft">
+                </div>
+                <button type="submit" class="submit-btn">Add Stock</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>
