@@ -693,6 +693,22 @@ body {
     border-bottom: 1px solid var(--glass-border);
 }
 
+.pb-0 {
+    padding-bottom: 0 !important;
+    border-bottom: none !important;
+}
+
+.table-wrapper-p {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    max-height: 550px;
+    overflow-y: auto;
+}
+
+.transaction-table {
+    table-layout: auto;
+    width: 100%;
+}
+
 @media (max-width: 1400px) {
     .summary-card { grid-column: span 3; }
 }
