@@ -10,6 +10,10 @@ window.switchTab = (tabName) => {
             if (li.querySelector('span').innerText.toLowerCase().trim() === tabName.toLowerCase().trim()) li.classList.add('active');
         });
         window.dispatchEvent(new Event('resize'));
+        // Special case: update full list if we switch to spending
+        if (tabName.toLowerCase().trim() === 'spending') {
+             // We can refresh the UI to ensure filters are applied
+        }
     }
 };
 
@@ -103,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
         state.expenses.forEach(ex => {
             if (ex.type !== 'EXP') return;
             
-            // Month Filter
             if (monthFilter === 'current') {
                 const [y, m] = ex.date.split('-');
                 if (m !== currentMonthStr || y !== currentYearStr) return;
@@ -112,49 +115,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (m !== monthFilter) return;
             }
 
-            // Category Filter
             if (categoryFilter !== 'all' && ex.category !== categoryFilter) return;
-
             totals[ex.category] = (totals[ex.category] || 0) + parseFloat(ex.amount);
         });
         return totals;
     };
 
-    const calculateNetIncome = () => {
+    const calculateFilteredStats = (mFilter, cFilter) => {
         const now = new Date();
         const curM = (now.getMonth() + 1).toString().padStart(2, '0');
         const curY = now.getFullYear().toString();
         
-        let inc = 0, exp = 0;
+        let totalExp = 0, totalInc = 0;
         state.expenses.forEach(ex => {
             const [y, m] = ex.date.split('-');
-            if (m === curM && y === curY) {
-                if (ex.type === 'INC') inc += parseFloat(ex.amount);
-                else exp += parseFloat(ex.amount);
+            const monthMatch = (mFilter === 'all') || (mFilter === 'current' && m === curM && y === curY) || (m === mFilter);
+            const catMatch = (cFilter === 'all') || (ex.category === cFilter);
+            
+            if (monthMatch && catMatch) {
+                if (ex.type === 'INC') totalInc += parseFloat(ex.amount);
+                else totalExp += parseFloat(ex.amount);
             }
         });
-        return inc - exp;
+        return { totalExp, net: totalInc - totalExp };
     };
 
     // --- 4. UI Updates ---
     const updateUI = () => {
-        // Update Home Page Mini Chart (always current month)
-        if (spendingChart && document.getElementById('section-overview').classList.contains('active')) {
+        // Overview Summary
+        const curMonthStats = calculateFilteredStats('current', 'all');
+        const netEl = document.getElementById('net-income-value');
+        if (netEl) {
+            netEl.textContent = (curMonthStats.net >= 0 ? '+' : '') + '$' + curMonthStats.net.toLocaleString();
+            netEl.style.color = curMonthStats.net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
+        }
+
+        const totalNetWorth = 1485720 + curMonthStats.net; // Simulated
+        const nwEl = document.getElementById('total-net-worth');
+        if (nwEl) nwEl.textContent = '$' + totalNetWorth.toLocaleString();
+
+        // Overview Chart
+        if (spendingChart) {
             const data = getFilteredAggregate('current');
             spendingChart.data.labels = Object.keys(data);
             spendingChart.data.datasets[0].data = Object.values(data);
             spendingChart.update();
-            
             const totalM = Object.values(data).reduce((a, b) => a + b, 0);
             document.getElementById('total-spending-value').textContent = '$' + totalM.toLocaleString();
-        }
-
-        // Update Net Income
-        const net = calculateNetIncome();
-        const netEl = document.getElementById('net-income-value');
-        if (netEl) {
-            netEl.textContent = (net >= 0 ? '+' : '') + '$' + net.toLocaleString();
-            netEl.style.color = net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
         }
 
         renderTransactionLists();
@@ -166,10 +173,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const miniList = document.getElementById('transaction-list');
         const fullList = document.getElementById('full-transaction-list');
         
-        // Mini list for home page (just recent expenses)
         if (miniList) {
             miniList.innerHTML = '';
-            state.expenses.filter(ex => ex.type === 'EXP').slice(-5).reverse().forEach((ex, i) => {
+            state.expenses.filter(ex => ex.type === 'EXP').slice(-5).reverse().forEach(ex => {
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td>$${parseFloat(ex.amount).toLocaleString()}</td>
                     <td class="admin-only" style="display: ${state.isAdmin ? 'table-cell' : 'none'}">
@@ -179,10 +185,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Apply filters to Full list
         if (fullList) {
             const mFilter = document.getElementById('filter-month').value;
             const cFilter = document.getElementById('filter-category').value;
+            
+            // Update Summary Stats on Spending Page
+            const stats = calculateFilteredStats(mFilter, cFilter);
+            document.getElementById('stats-total-exp').textContent = '$' + stats.totalExp.toLocaleString();
+            const netStatEl = document.getElementById('stats-net-income');
+            netStatEl.textContent = (stats.net >= 0 ? '+' : '') + '$' + stats.net.toLocaleString();
+            netStatEl.style.color = stats.net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
+
             const filtered = state.expenses.filter(ex => {
                 const now = new Date();
                 const [y, m] = ex.date.split('-');

@@ -198,7 +198,7 @@
                             <div class="filters">
                                 <select id="filter-month">
                                     <option value="all">All Months</option>
-                                    <option value="current">Current Month</option>
+                                    <option value="current" selected>Current Month</option>
                                     <option value="01">January</option>
                                     <option value="02">February</option>
                                     <option value="03">March</option>
@@ -224,8 +224,21 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Summary Bar for Filtered Data -->
+                    <div class="spending-summary-bar">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Expenses</span>
+                            <span class="stat-value" id="stats-total-exp">$0.00</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Net (Income - Exp)</span>
+                            <span class="stat-value" id="stats-net-income">$0.00</span>
+                        </div>
+                    </div>
+
                     <!-- Large Transaction Table -->
-                    <div class="table-wrapper" style="max-height: 600px;">
+                    <div class="table-wrapper" style="max-height: 500px;">
                          <table class="transaction-table full-table">
                             <thead>
                                 <tr>
