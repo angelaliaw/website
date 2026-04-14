@@ -661,12 +661,17 @@ body {
     font-size: 1.8rem;
 }
 
-.spending-summary-bar {
+.spending-report-layout {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 350px 1fr;
     gap: 1.5rem;
-    margin-bottom: 2rem;
-    padding: 0 1rem;
+    align-items: start;
+}
+
+.spending-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
 }
 
 .stat-item {
@@ -692,10 +697,15 @@ body {
     font-family: var(--font-heading);
 }
 
+.table-card {
+    padding: 0;
+    overflow: hidden;
+}
+
 @media (max-width: 1400px) {
     .summary-card { grid-column: span 3; }
 }
 
-@media (max-width: 600px) {
-    .spending-summary-bar { grid-template-columns: 1fr; }
+@media (max-width: 1000px) {
+    .spending-report-layout { grid-template-columns: 1fr; }
 }

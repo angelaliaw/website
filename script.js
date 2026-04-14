@@ -10,10 +10,8 @@ window.switchTab = (tabName) => {
             if (li.querySelector('span').innerText.toLowerCase().trim() === tabName.toLowerCase().trim()) li.classList.add('active');
         });
         window.dispatchEvent(new Event('resize'));
-        // Special case: update full list if we switch to spending
-        if (tabName.toLowerCase().trim() === 'spending') {
-             // We can refresh the UI to ensure filters are applied
-        }
+        // Trigger UI update when switching tabs to ensure data is fresh
+        if (typeof window.triggerUIUpdate === 'function') window.triggerUIUpdate();
     }
 };
 
@@ -44,7 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 2. Chart Initialization ---
-    let spendingChart, allocationChart;
+    let spendingChart, allocationChart, detailedSpendingChart;
+    const chartColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#f43f5e', '#6366f1'];
     
     const initCharts = () => {
         const ctxPortfolio = document.getElementById('portfolioHistoryChart')?.getContext('2d');
@@ -72,11 +71,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     labels: Object.keys(currentMonthData),
                     datasets: [{
                         data: Object.values(currentMonthData),
-                        backgroundColor: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4'],
+                        backgroundColor: chartColors,
                         borderWidth: 0
                     }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
+            });
+        }
+
+        const ctxDetailed = document.getElementById('detailedSpendingChart')?.getContext('2d');
+        if (ctxDetailed) {
+            detailedSpendingChart = new Chart(ctxDetailed, {
+                type: 'pie',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: chartColors, borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 } } } } }
             });
         }
 
@@ -98,30 +106,27 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 3. Data Filtering & Aggregation ---
-    const getFilteredAggregate = (monthFilter = 'all', categoryFilter = 'all') => {
+    const getFilteredAggregate = (monthFilter = 'all', yearFilter = 'all', categoryFilter = 'all') => {
         const totals = {};
         const now = new Date();
-        const currentMonthStr = (now.getMonth() + 1).toString().padStart(2, '0');
-        const currentYearStr = now.getFullYear().toString();
+        const curM = (now.getMonth() + 1).toString().padStart(2, '0');
+        const curY = now.getFullYear().toString();
 
         state.expenses.forEach(ex => {
             if (ex.type !== 'EXP') return;
+            const [y, m] = ex.date.split('-');
             
-            if (monthFilter === 'current') {
-                const [y, m] = ex.date.split('-');
-                if (m !== currentMonthStr || y !== currentYearStr) return;
-            } else if (monthFilter !== 'all') {
-                const m = ex.date.split('-')[1];
-                if (m !== monthFilter) return;
-            }
-
+            if (yearFilter !== 'all' && y !== yearFilter) return;
+            if (monthFilter === 'current') { if (m !== curM || y !== curY) return; }
+            else if (monthFilter !== 'all' && m !== monthFilter) return;
             if (categoryFilter !== 'all' && ex.category !== categoryFilter) return;
+
             totals[ex.category] = (totals[ex.category] || 0) + parseFloat(ex.amount);
         });
         return totals;
     };
 
-    const calculateFilteredStats = (mFilter, cFilter) => {
+    const calculateFilteredStats = (yFilter, mFilter, cFilter) => {
         const now = new Date();
         const curM = (now.getMonth() + 1).toString().padStart(2, '0');
         const curY = now.getFullYear().toString();
@@ -129,10 +134,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalExp = 0, totalInc = 0;
         state.expenses.forEach(ex => {
             const [y, m] = ex.date.split('-');
+            const yearMatch = (yFilter === 'all') || (y === yFilter);
             const monthMatch = (mFilter === 'all') || (mFilter === 'current' && m === curM && y === curY) || (m === mFilter);
             const catMatch = (cFilter === 'all') || (ex.category === cFilter);
             
-            if (monthMatch && catMatch) {
+            if (yearMatch && monthMatch && catMatch) {
                 if (ex.type === 'INC') totalInc += parseFloat(ex.amount);
                 else totalExp += parseFloat(ex.amount);
             }
@@ -141,16 +147,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 4. UI Updates ---
-    const updateUI = () => {
+    window.triggerUIUpdate = () => {
         // Overview Summary
-        const curMonthStats = calculateFilteredStats('current', 'all');
+        const curMonthStats = calculateFilteredStats('all', 'current', 'all');
         const netEl = document.getElementById('net-income-value');
         if (netEl) {
             netEl.textContent = (curMonthStats.net >= 0 ? '+' : '') + '$' + curMonthStats.net.toLocaleString();
             netEl.style.color = curMonthStats.net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
         }
 
-        const totalNetWorth = 1485720 + curMonthStats.net; // Simulated
+        const totalNetWorth = 1485720 + curMonthStats.net;
         const nwEl = document.getElementById('total-net-worth');
         if (nwEl) nwEl.textContent = '$' + totalNetWorth.toLocaleString();
 
@@ -160,8 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
             spendingChart.data.labels = Object.keys(data);
             spendingChart.data.datasets[0].data = Object.values(data);
             spendingChart.update();
-            const totalM = Object.values(data).reduce((a, b) => a + b, 0);
-            document.getElementById('total-spending-value').textContent = '$' + totalM.toLocaleString();
+            document.getElementById('total-spending-value').textContent = '$' + Object.values(data).reduce((a,b)=>a+b,0).toLocaleString();
         }
 
         renderTransactionLists();
@@ -178,30 +183,37 @@ document.addEventListener('DOMContentLoaded', () => {
             state.expenses.filter(ex => ex.type === 'EXP').slice(-5).reverse().forEach(ex => {
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td>$${parseFloat(ex.amount).toLocaleString()}</td>
-                    <td class="admin-only" style="display: ${state.isAdmin ? 'table-cell' : 'none'}">
-                        <button class="remove-btn" onclick="window.removeTransaction(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button>
-                    </td>`;
+                    <td class="admin-only"><button class="remove-btn" onclick="window.removeTransaction(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
                 miniList.appendChild(row);
             });
         }
 
         if (fullList) {
+            const yFilter = document.getElementById('filter-year').value;
             const mFilter = document.getElementById('filter-month').value;
             const cFilter = document.getElementById('filter-category').value;
             
-            // Update Summary Stats on Spending Page
-            const stats = calculateFilteredStats(mFilter, cFilter);
+            const stats = calculateFilteredStats(yFilter, mFilter, cFilter);
             document.getElementById('stats-total-exp').textContent = '$' + stats.totalExp.toLocaleString();
             const netStatEl = document.getElementById('stats-net-income');
             netStatEl.textContent = (stats.net >= 0 ? '+' : '') + '$' + stats.net.toLocaleString();
             netStatEl.style.color = stats.net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
 
+            // Update Detailed Pie Chart
+            if (detailedSpendingChart) {
+                const aggData = getFilteredAggregate(mFilter, yFilter, cFilter);
+                detailedSpendingChart.data.labels = Object.keys(aggData);
+                detailedSpendingChart.data.datasets[0].data = Object.values(aggData);
+                detailedSpendingChart.update();
+            }
+
             const filtered = state.expenses.filter(ex => {
                 const now = new Date();
                 const [y, m] = ex.date.split('-');
-                const monthMatch = (mFilter === 'all') || (mFilter === 'current' && m === (now.getMonth()+1).toString().padStart(2,'0')) || (m === mFilter);
-                const catMatch = (cFilter === 'all') || (ex.category === cFilter);
-                return monthMatch && catMatch;
+                const yMatch = (yFilter === 'all') || (y === yFilter);
+                const mMatch = (mFilter === 'all') || (mFilter === 'current' && m === (now.getMonth()+1).toString().padStart(2,'0') && y === now.getFullYear().toString()) || (m === mFilter);
+                const cMatch = (cFilter === 'all') || (ex.category === cFilter);
+                return yMatch && mMatch && cMatch;
             });
 
             fullList.innerHTML = '';
@@ -209,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td class="${ex.type === 'EXP' ? 'negative' : 'positive'}">${ex.type === 'EXP' ? '-' : '+'}$${parseFloat(ex.amount).toLocaleString()}</td>
                     <td>${ex.account}</td><td>${ex.memo}</td><td>${ex.type}</td>
-                    <td class="admin-only" style="display: ${state.isAdmin ? 'table-cell' : 'none'}"><button class="remove-btn" onclick="window.removeTransaction(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
+                    <td class="admin-only"><button class="remove-btn" onclick="window.removeTransaction(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
                 fullList.appendChild(row);
             });
         }
@@ -227,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
             row.innerHTML = `
                 <td><div class="symbol-cell"><div class="symbol-icon">${stock.symbol.split('.')[0]}</div><div class="symbol-info"><strong>${stock.symbol}</strong><br><small>${stock.name}</small></div></div></td>
                 <td>$${parseFloat(stock.price).toFixed(2)}</td><td class="trend ${changeClass}">${changeSign}${stock.change}%</td>
-                <td class="admin-only" style="display: ${state.isAdmin ? 'table-cell' : 'none'}"><button class="remove-btn" onclick="window.removeStock(${index})"><i data-lucide="trash-2"></i></button></td>
+                <td class="admin-only"><button class="remove-btn" onclick="window.removeStock(${index})"><i data-lucide="trash-2"></i></button></td>
             `;
             list.appendChild(row);
         });
@@ -237,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 5. Global Helpers & Admin ---
     window.removeTransaction = (index) => {
         if (!state.isAdmin) return;
-        if (confirm("Remove transaction?")) { state.expenses.splice(index, 1); saveState(); updateUI(); }
+        if (confirm("Remove transaction?")) { state.expenses.splice(index, 1); saveState(); window.triggerUIUpdate(); }
     };
     window.removeStock = (index) => {
         if (!state.isAdmin) return;
@@ -262,8 +274,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 6. Event Handling ---
-    document.getElementById('filter-month').onchange = updateUI;
-    document.getElementById('filter-category').onchange = updateUI;
+    document.getElementById('filter-year').onchange = window.triggerUIUpdate;
+    document.getElementById('filter-month').onchange = window.triggerUIUpdate;
+    document.getElementById('filter-category').onchange = window.triggerUIUpdate;
 
     document.getElementById('csv-upload')?.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -275,12 +288,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const newEx = [];
             for (let i = 1; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
-                const v = lines[i].split(',').map(cell => cell.trim());
+                const v = lines[i].split(',').map(c => c.trim());
                 const entry = {}; headers.forEach((h, idx) => entry[h] = v[idx]);
                 newEx.push({ date: entry['Date'] || '', category: entry['Category'] || 'Others', amount: parseFloat(entry['Amount']) || 0, currency: entry['Currency'] || 'TWD', account: entry['Account'] || 'Default', type: entry['Income&Exp'] || 'EXP', memo: entry['Memo'] || '', lastUpdated: Date.now(), uuidCode: entry['UUID'] || self.crypto.randomUUID() });
             }
             state.expenses = [...state.expenses, ...newEx];
-            saveState(); updateUI(); alert(`Imported ${newEx.length} records!`);
+            saveState(); window.triggerUIUpdate(); alert(`Imported ${newEx.length} records!`);
         };
         reader.readAsText(file);
     });
@@ -288,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('expense-form').onsubmit = (e) => {
         e.preventDefault();
         state.expenses.push({ date: document.getElementById('expense-date').value, category: document.getElementById('expense-category').value, amount: parseFloat(document.getElementById('expense-amount').value), type: document.getElementById('expense-type').value, account: document.getElementById('expense-account').value, memo: document.getElementById('expense-memo').value, lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() });
-        saveState(); updateUI(); document.getElementById('expense-modal').classList.remove('active'); e.target.reset();
+        saveState(); window.triggerUIUpdate(); document.getElementById('expense-modal').classList.remove('active'); e.target.reset();
     };
 
     document.getElementById('stock-form').onsubmit = (e) => {
@@ -298,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Init ---
-    initCharts(); updateUI();
+    initCharts(); window.triggerUIUpdate();
     document.querySelectorAll('.nav-links li').forEach(li => li.onclick = () => window.switchTab(li.querySelector('span').innerText));
     document.getElementById('refresh-stocks').onclick = async () => {
         const btn = document.getElementById('refresh-stocks'); btn.classList.add('loading');
