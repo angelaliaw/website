@@ -1,3 +1,30 @@
+// Define switchTab globally so it's accessible from HTML onclick attributes
+window.switchTab = (tabName) => {
+    // Determine the target section ID
+    const targetId = `section-${tabName.toLowerCase().trim()}`;
+    const targetSection = document.getElementById(targetId);
+    
+    if (targetSection) {
+        // Toggle visibility of sections
+        document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+        targetSection.classList.add('active');
+
+        // Update sidebar "active" styling
+        document.querySelectorAll('.nav-links li').forEach(li => {
+            li.classList.remove('active');
+            const spanText = li.querySelector('span').innerText.toLowerCase();
+            if (spanText === tabName.toLowerCase().trim()) {
+                li.classList.add('active');
+            }
+        });
+
+        // Trigger chart refreshes if needed when switching
+        window.dispatchEvent(new Event('resize'));
+    } else {
+        console.warn(`Section ${targetId} not found.`);
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- 1. State Management ---
     const defaultStocks = [
@@ -25,8 +52,74 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('wp_expenses', JSON.stringify(state.expenses));
     };
 
-    // --- 2. Chart Utilities ---
-    let spendingChart;
+    // --- 2. Chart Initialization ---
+    let spendingChart, allocationChart;
+    
+    const initCharts = () => {
+        // Line Chart: Portfolio History
+        const ctxPortfolio = document.getElementById('portfolioHistoryChart')?.getContext('2d');
+        if (ctxPortfolio) {
+            new Chart(ctxPortfolio, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
+                    datasets: [{
+                        label: 'Value (TWD)',
+                        data: [780000, 950000, 1050000, 1120000, 1080000, 1250000, 1380000, 1420000, 1350000, 1485720],
+                        borderColor: '#10b981',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // Donut Chart: Spending Breakdown
+        const ctxSpending = document.getElementById('spendingDonutChart')?.getContext('2d');
+        if (ctxSpending) {
+            const data = getAggregateSpending();
+            spendingChart = new Chart(ctxSpending, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
+            });
+        }
+
+        // Bar Chart: Asset Allocation (Investments Page)
+        const ctxAlloc = document.getElementById('allocationChart')?.getContext('2d');
+        if (ctxAlloc) {
+            allocationChart = new Chart(ctxAlloc, {
+                type: 'bar',
+                data: {
+                    labels: ['Stocks', 'ETFs', 'Cash', 'Bonds'],
+                    datasets: [{
+                        label: 'Allocation %',
+                        data: [65, 20, 10, 5],
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 8
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { grid: { display: false } }, y: { grid: { display: false } } }
+                }
+            });
+        }
+    };
+
     const getAggregateSpending = () => {
         const totals = {};
         state.expenses.forEach(ex => {
@@ -37,62 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return totals;
     };
 
-    const initCharts = () => {
-        const ctxPortfolio = document.getElementById('portfolioHistoryChart').getContext('2d');
-        const portfolioGradient = ctxPortfolio.createLinearGradient(0, 0, 0, 400);
-        portfolioGradient.addColorStop(0, 'rgba(16, 185, 129, 0.2)');
-        portfolioGradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
-
-        new Chart(ctxPortfolio, {
-            type: 'line',
-            data: {
-                labels: ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
-                datasets: [{
-                    label: 'Portfolio Value (TWD)',
-                    data: [750000, 820000, 780000, 950000, 1050000, 1120000, 1080000, 1250000, 1380000, 1420000, 1350000, 1485720],
-                    borderColor: '#10b981',
-                    borderWidth: 3,
-                    fill: true,
-                    backgroundColor: portfolioGradient,
-                    tension: 0.4,
-                    pointRadius: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { display: false }, ticks: { color: '#64748b' } },
-                    y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#64748b', callback: (val) => (val / 1000) + 'k' } }
-                }
-            }
-        });
-
-        const initialData = getAggregateSpending();
-        const ctxSpending = document.getElementById('spendingDonutChart').getContext('2d');
-        spendingChart = new Chart(ctxSpending, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(initialData),
-                datasets: [{
-                    data: Object.values(initialData),
-                    backgroundColor: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#f43f5e'],
-                    borderWidth: 0,
-                    hoverOffset: 10
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '75%',
-                plugins: { legend: { display: false } }
-            }
-        });
-        updateTotalSpending();
-    };
-
-    // --- 3. UI Rendering ---
     const updateUI = () => {
         const data = getAggregateSpending();
         if (spendingChart) {
@@ -100,24 +137,21 @@ document.addEventListener('DOMContentLoaded', () => {
             spendingChart.data.datasets[0].data = Object.values(data);
             spendingChart.update();
         }
-        updateTotalSpending();
+        
+        const totalValue = Object.values(data).reduce((a, b) => a + b, 0);
+        const totalEl = document.getElementById('total-spending-value');
+        if (totalEl) totalEl.textContent = '$' + totalValue.toLocaleString();
+
         renderTransactionLists();
         renderStocks();
         updateAdminVisibility();
-    };
-
-    const updateTotalSpending = () => {
-        const data = getAggregateSpending();
-        const total = Object.values(data).reduce((a, b) => a + b, 0);
-        const el = document.getElementById('total-spending-value');
-        if (el) el.textContent = '$' + total.toLocaleString();
     };
 
     const renderTransactionLists = () => {
         const miniList = document.getElementById('transaction-list');
         const fullList = document.getElementById('full-transaction-list');
         
-        const renderRow = (ex, idx, isFull = false) => {
+        const createRow = (ex, idx, isFull = false) => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${ex.date}</td>
@@ -127,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 ${isFull ? `<td>${ex.account}</td><td>${ex.memo}</td><td>${ex.type}</td>` : ''}
                 <td class="admin-only" style="display: ${state.isAdmin ? 'table-cell' : 'none'}">
-                    <button class="remove-btn" onclick="removeTransaction(${idx})">
+                    <button class="remove-btn" title="Remove" onclick="window.removeTransaction(${idx})">
                         <i data-lucide="x" style="width: 14px;"></i>
                     </button>
                 </td>
@@ -137,11 +171,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (miniList) {
             miniList.innerHTML = '';
-            state.expenses.slice(-5).reverse().forEach((ex, idx) => miniList.appendChild(renderRow(ex, state.expenses.length - 1 - idx)));
+            state.expenses.slice(-5).reverse().forEach((ex, i) => miniList.appendChild(createRow(ex, state.expenses.length - 1 - i)));
         }
         if (fullList) {
             fullList.innerHTML = '';
-            state.expenses.slice().reverse().forEach((ex, idx) => fullList.appendChild(renderRow(ex, state.expenses.length - 1 - idx, true)));
+            state.expenses.slice().reverse().forEach((ex, i) => fullList.appendChild(createRow(ex, state.expenses.length - 1 - i, true)));
         }
         lucide.createIcons();
     };
@@ -161,10 +195,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="symbol-info"><strong>${stock.symbol}</strong><br><small>${stock.name}</small></div>
                     </div>
                 </td>
-                <td>${parseFloat(stock.price).toFixed(2)}</td>
+                <td>$${parseFloat(stock.price).toFixed(2)}</td>
                 <td class="trend ${changeClass}">${changeSign}${stock.change}%</td>
                 <td class="admin-only" style="display: ${state.isAdmin ? 'table-cell' : 'none'}">
-                    <button class="remove-btn" onclick="removeStock(${index})">
+                    <button class="remove-btn" title="Remove" onclick="window.removeStock(${index})">
                         <i data-lucide="trash-2" style="width: 16px;"></i>
                     </button>
                 </td>
@@ -174,126 +208,90 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
     };
 
-    // --- 4. Navigation & Admin ---
-    window.switchTab = (tabName) => {
-        const targetId = `section-${tabName.toLowerCase()}`;
-        document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
-        const targetSection = document.getElementById(targetId);
-        if (targetSection) targetSection.classList.add('active');
-
-        // Update sidebar active state
-        document.querySelectorAll('.nav-links li').forEach(li => {
-            li.classList.remove('active');
-            if (li.innerText.includes(tabName)) li.classList.add('active');
-        });
+    // --- 3. Deletion Functions (Global) ---
+    window.removeTransaction = (index) => {
+        if (!state.isAdmin) return;
+        if (confirm("Remove this transaction?")) {
+            state.expenses.splice(index, 1);
+            saveState();
+            updateUI();
+        }
     };
 
+    window.removeStock = (index) => {
+        if (!state.isAdmin) return;
+        if (confirm("Remove this stock?")) {
+            state.stocks.splice(index, 1);
+            saveState();
+            renderStocks();
+        }
+    };
+
+    // --- 4. Admin Management ---
     const updateAdminVisibility = () => {
         const adminElements = document.querySelectorAll('.admin-only');
+        adminElements.forEach(el => {
+            const displayType = (el.tagName === 'TD' || el.tagName === 'TH') ? 'table-cell' : 'flex';
+            el.style.display = state.isAdmin ? displayType : 'none';
+        });
+
         const lockBtn = document.getElementById('admin-lock-btn');
-        const lockIcon = lockBtn.querySelector('i');
-        
-        adminElements.forEach(el => el.style.display = state.isAdmin ? (el.tagName === 'TD' || el.tagName === 'TH' ? 'table-cell' : 'flex') : 'none');
-        
-        if (state.isAdmin) {
-            lockBtn.classList.add('unlocked');
-            lockIcon.setAttribute('data-lucide', 'unlock');
-        } else {
-            lockBtn.classList.remove('unlocked');
-            lockIcon.setAttribute('data-lucide', 'lock');
+        if (lockBtn) {
+            lockBtn.classList.toggle('unlocked', state.isAdmin);
+            const icon = lockBtn.querySelector('i');
+            if (icon) {
+                icon.setAttribute('data-lucide', state.isAdmin ? 'unlock' : 'lock');
+                lucide.createIcons();
+            }
         }
-        lucide.createIcons();
     };
 
     document.getElementById('admin-lock-btn').onclick = () => {
         if (state.isAdmin) {
             state.isAdmin = false;
+            updateAdminVisibility();
         } else {
-            const pw = prompt("Enter Admin Passcode:");
-            if (pw === "1234") { // Simple passcode for demo
+            const pw = prompt("Enter Passcode (Hint: 1234):");
+            if (pw === "1234") {
                 state.isAdmin = true;
-            } else {
-                alert("Incorrect passcode.");
+                updateAdminVisibility();
+            } else if (pw !== null) {
+                alert("Wrong passcode.");
             }
         }
-        updateAdminVisibility();
-        renderTransactionLists();
-        renderStocks();
     };
 
-    // --- 5. Data Services (TSEC Integration) ---
-    const fetchStockPrices = async () => {
-        const refreshBtn = document.getElementById('refresh-stocks');
-        if (!refreshBtn) return;
-        refreshBtn.classList.add('loading');
-        
-        try {
-            // Using a CORS proxy + Multiple sources for Taiwan stocks
-            // For demo, we'll randomize TSEC-like behavior, but here is how you call real data:
-            // const url = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.twse.com.tw/exchangeReport/STOCK_DAY_AVG?response=json&stockNo=2330')}`;
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            state.stocks = state.stocks.map(stock => {
-                const move = 1 + (Math.random() * 0.02 - 0.01);
-                const newPrice = stock.price * move;
-                return {
-                    ...stock,
-                    price: newPrice,
-                    change: parseFloat(((newPrice - stock.price) / stock.price * 100).toFixed(2))
-                };
-            });
-
-            state.lastFetch = new Date().toISOString();
-            localStorage.setItem('wp_last_fetch', state.lastFetch);
-            updateLastUpdatedText();
-            saveState();
-            renderStocks();
-        } catch (e) { console.error("Stock fetch failed", e); }
-        refreshBtn.classList.remove('loading');
-    };
-
-    window.removeTransaction = (index) => {
-        if (!state.isAdmin) return;
-        state.expenses.splice(index, 1);
-        saveState();
-        updateUI();
-    };
-
-    window.removeStock = (index) => {
-        if (!state.isAdmin) return;
-        state.stocks.splice(index, 1);
-        saveState();
-        updateUI();
-    };
-
-    const updateLastUpdatedText = () => {
-        const el = document.getElementById('last-updated');
-        if (el && state.lastFetch) {
-            const date = new Date(state.lastFetch);
-            el.textContent = `Updated: ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-        }
-    };
-
-    // --- 6. Event Listeners ---
-    document.getElementById('csv-upload').addEventListener('change', (e) => {
+    // --- 5. Data Actions ---
+    document.getElementById('csv-upload')?.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = (event) => {
             const lines = event.target.result.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
             const newEx = [];
             for (let i = 1; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
-                const v = lines[i].split(',');
+                const v = lines[i].split(',').map(cell => cell.trim());
+                const entry = {};
+                headers.forEach((h, idx) => entry[h] = v[idx]);
+                
                 newEx.push({
-                    date: v[0], category: v[1], amount: parseFloat(v[3]), currency: v[4],
-                    member: v[5], account: v[6], type: v[9], memo: v[8], lastUpdated: Date.now(), uuidCode: v[11] || self.crypto.randomUUID()
+                    date: entry['Date'] || '',
+                    category: entry['Category'] || 'Others',
+                    amount: parseFloat(entry['Amount']) || 0,
+                    currency: entry['Currency'] || 'TWD',
+                    account: entry['Account'] || 'Default',
+                    type: entry['Income&Exp'] || 'EXP',
+                    memo: entry['Memo'] || '',
+                    lastUpdated: Date.now(),
+                    uuidCode: entry['UUID'] || self.crypto.randomUUID()
                 });
             }
             state.expenses = [...state.expenses, ...newEx];
             saveState();
             updateUI();
+            alert(`Imported ${newEx.length} records!`);
         };
         reader.readAsText(file);
     });
@@ -307,7 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
             type: document.getElementById('expense-type').value,
             account: document.getElementById('expense-account').value,
             memo: document.getElementById('expense-memo').value,
-            lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID()
+            lastUpdated: Date.now(),
+            uuidCode: self.crypto.randomUUID()
         });
         saveState();
         updateUI();
@@ -329,21 +328,36 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.reset();
     };
 
-    document.getElementById('refresh-stocks').onclick = fetchStockPrices;
-    document.querySelectorAll('.nav-links li').forEach(li => li.onclick = () => switchTab(li.querySelector('span').innerText));
-
-    // --- Init ---
+    // --- 6. Initialization ---
     initCharts();
     updateUI();
-    updateLastUpdatedText();
     
-    // Auto-fetch if old
-    const last = state.lastFetch ? new Date(state.lastFetch) : 0;
-    if ((new Date() - last) > 3600000) fetchStockPrices(); 
-});
+    // Sidebar nav listeners
+    document.querySelectorAll('.nav-links li').forEach(li => {
+        li.addEventListener('click', () => {
+            const tabName = li.querySelector('span').innerText;
+            window.switchTab(tabName);
+        });
+    });
 
-window.removeTransaction = (idx) => {
-    // This is a bit tricky since we might be in filtered views, but for now:
-    // This needs to be handled inside the DOM ready scope or globally.
-    // I'll move it to a global handler or use event delegation.
-};
+    // Auto-fetch simulation for stocks
+    const fetchStocks = async () => {
+        const btn = document.getElementById('refresh-stocks');
+        if (!btn) return;
+        btn.classList.add('loading');
+        await new Promise(r => setTimeout(r, 1200));
+        state.stocks = state.stocks.map(s => ({
+            ...s,
+            price: s.price * (1 + (Math.random() * 0.02 - 0.01)),
+            change: (Math.random() * 2 - 1).toFixed(2)
+        }));
+        saveState();
+        renderStocks();
+        btn.classList.remove('loading');
+        
+        const lastEl = document.getElementById('last-updated');
+        if (lastEl) lastEl.textContent = `Updated: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    };
+    
+    document.getElementById('refresh-stocks').onclick = fetchStocks;
+});

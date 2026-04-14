@@ -94,11 +94,11 @@
                                 <button class="icon-btn" id="export-csv" title="Export CSV">
                                     <i data-lucide="download"></i>
                                 </button>
-                                <label for="csv-upload" class="icon-btn" title="Import CSV">
-                                    <i data-lucide="file-up"></i>
+                                <label for="csv-upload" class="add-btn" style="cursor: pointer;" title="Import CSV">
+                                    <i data-lucide="file-up"></i> Upload CSV
                                     <input type="file" id="csv-upload" accept=".csv" style="display: none;">
                                 </label>
-                                <button class="add-btn" id="add-expense-btn"><i data-lucide="plus"></i></button>
+                                <button class="add-btn" id="add-expense-btn"><i data-lucide="plus"></i> Add</button>
                             </div>
                         </div>
                         <div class="view-container">
@@ -205,11 +205,25 @@
                 </div>
             </div>
 
-            <!-- Placeholder for other sections -->
+            <!-- Detailed Investments Section -->
             <div id="section-investments" class="view-section">
-                <div class="card glass">
-                    <h2>Investments Portfolio</h2>
-                    <p style="color: var(--text-secondary); margin-top: 1rem;">Detailed investment analysis coming soon...</p>
+                <div class="card glass full-width">
+                    <div class="card-header">
+                        <h2>Investments Portfolio</h2>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="card glass">
+                            <h3>Asset Allocation</h3>
+                            <div class="chart-container" style="height: 250px;">
+                                <canvas id="allocationChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="card glass">
+                            <h3>Dividend Yield</h3>
+                            <div class="balance">3.8%</div>
+                            <p style="color: var(--text-secondary)">Annualized yield across TSEC portfolio</p>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="section-property" class="view-section">
