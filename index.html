@@ -39,6 +39,9 @@
                     <input type="text" placeholder="Search markets or spending...">
                 </div>
                 <div class="user-profile">
+                    <button id="admin-lock-btn" class="icon-btn" title="Admin Unlock">
+                        <i data-lucide="lock"></i>
+                    </button>
                     <i data-lucide="bell" class="icon-btn"></i>
                     <div class="avatar">AR</div>
                     <span class="username">Alex R.</span>
@@ -46,130 +49,181 @@
                 </div>
             </header>
 
-            <section class="dashboard-grid">
-                <!-- Hero Summary -->
-                <div class="card summary-card glass">
-                    <div class="card-header">
-                        <h3>Total Net Worth</h3>
-                        <div class="icon-circle"><i data-lucide="dollar-sign"></i></div>
-                    </div>
-                    <div class="balance">$1,485,720.50</div>
-                    <div class="trend positive">
-                        <i data-lucide="arrow-up-right"></i>
-                        <span>+3.2% vs last month</span>
-                    </div>
-                </div>
-
-                <!-- Portfolio Chart -->
-                <div class="card chart-card glass portfolio-chart">
-                    <div class="card-header">
-                        <h3>Portfolio Growth</h3>
-                        <div class="time-filters">
-                            <button class="active">1Y</button>
-                            <button>6M</button>
-                            <button>1M</button>
+            <!-- Navigation Sections -->
+            <div id="section-overview" class="view-section active">
+                <section class="dashboard-grid">
+                    <!-- Hero Summary -->
+                    <div class="card summary-card glass">
+                        <div class="card-header">
+                            <h3>Total Net Worth</h3>
+                            <div class="icon-circle"><i data-lucide="dollar-sign"></i></div>
+                        </div>
+                        <div class="balance">$1,485,720.50</div>
+                        <div class="trend positive">
+                            <i data-lucide="arrow-up-right"></i>
+                            <span>+3.2% vs last month</span>
                         </div>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="portfolioHistoryChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Spending Breakdown -->
-                <div class="card breakdown-card glass">
-                    <div class="card-header">
-                        <div class="header-main">
-                            <h3>Spending</h3>
-                            <div class="view-toggles">
-                                <button class="toggle-btn active" data-view="chart"><i data-lucide="pie-chart"></i></button>
-                                <button class="toggle-btn" data-view="list"><i data-lucide="list"></i></button>
+    
+                    <!-- Portfolio Chart -->
+                    <div class="card chart-card glass portfolio-chart">
+                        <div class="card-header">
+                            <h3>Portfolio Growth</h3>
+                            <div class="time-filters">
+                                <button class="active">1Y</button>
+                                <button>6M</button>
+                                <button>1M</button>
                             </div>
                         </div>
-                        <div class="header-actions">
-                            <button class="icon-btn" id="export-csv" title="Export CSV">
-                                <i data-lucide="download"></i>
-                            </button>
-                            <label for="csv-upload" class="icon-btn" title="Import CSV">
-                                <i data-lucide="file-up"></i>
-                                <input type="file" id="csv-upload" accept=".csv" style="display: none;">
-                            </label>
-                            <button class="add-btn" id="add-expense-btn"><i data-lucide="plus"></i></button>
+                        <div class="chart-container">
+                            <canvas id="portfolioHistoryChart"></canvas>
                         </div>
                     </div>
-                    <div class="view-container">
-                        <div id="spending-chart-view" class="spending-view active">
-                            <div class="chart-container donut-container">
-                                <canvas id="spendingDonutChart"></canvas>
+    
+                    <!-- Spending Breakdown (Mini) -->
+                    <div class="card breakdown-card glass">
+                        <div class="card-header">
+                            <div class="header-main">
+                                <h3>Spending</h3>
+                                <div class="view-toggles">
+                                    <button class="toggle-btn active" data-view="chart" title="Chart View"><i data-lucide="pie-chart"></i></button>
+                                    <button class="toggle-btn" data-view="list" title="List View"><i data-lucide="list"></i></button>
+                                </div>
+                            </div>
+                            <div class="header-actions admin-only" style="display: none;">
+                                <button class="icon-btn" id="export-csv" title="Export CSV">
+                                    <i data-lucide="download"></i>
+                                </button>
+                                <label for="csv-upload" class="icon-btn" title="Import CSV">
+                                    <i data-lucide="file-up"></i>
+                                    <input type="file" id="csv-upload" accept=".csv" style="display: none;">
+                                </label>
+                                <button class="add-btn" id="add-expense-btn"><i data-lucide="plus"></i></button>
                             </div>
                         </div>
-                        <div id="spending-list-view" class="spending-view">
-                            <div class="table-wrapper mini-table">
-                                <table class="transaction-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Category</th>
-                                            <th>Amount</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="transaction-list">
-                                        <!-- Populated by JS -->
-                                    </tbody>
-                                </table>
+                        <div class="view-container">
+                            <div id="spending-chart-view" class="spending-view active">
+                                <div class="chart-container donut-container">
+                                    <canvas id="spendingDonutChart"></canvas>
+                                </div>
+                            </div>
+                            <div id="spending-list-view" class="spending-view">
+                                <div class="table-wrapper mini-table">
+                                    <table class="transaction-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Category</th>
+                                                <th>Amount</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="transaction-list">
+                                            <!-- Populated by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
+                        <div class="total-spending">
+                            <button class="nav-trigger-btn" onclick="switchTab('Spending')">View Detailed Report →</button>
+                            <span class="value" id="total-spending-value">$0.00</span>
+                        </div>
                     </div>
-                    <div class="total-spending">
-                        <span class="label">Total Spending</span>
-                        <span class="value" id="total-spending-value">$0.00</span>
+    
+                    <!-- Market Watchlist -->
+                    <div class="card watchlist-card glass">
+                        <div class="card-header">
+                            <h3>Market Watchlist (Taiwan TSEC)</h3>
+                            <div class="header-actions">
+                                <span id="last-updated" style="font-size: 0.7rem; color: var(--text-secondary); margin-right: 0.5rem;"></span>
+                                <button class="icon-btn" id="refresh-stocks" title="Auto-fetch latest prices">
+                                    <i data-lucide="refresh-cw"></i>
+                                </button>
+                                <button class="add-btn admin-only" id="add-stock-btn" style="display: none;">
+                                    <i data-lucide="plus"></i> Add Stock
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="watchlist-table">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Price (TWD)</th>
+                                        <th>Change %</th>
+                                        <th class="admin-only" style="display: none;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stock-list">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+    
+                    <!-- Real Estate -->
+                    <div class="card property-card glass">
+                        <div class="card-header">
+                            <h3>Real Estate</h3>
+                            <div class="icon-circle"><i data-lucide="home"></i></div>
+                        </div>
+                        <div class="property-details">
+                            <div class="property-val">$845,000</div>
+                            <div class="trend positive">+0.7% Month</div>
+                        </div>
+                        <div class="property-info">Updated: Oct 30 • 12599 Property Ave.</div>
+                    </div>
+                </section>
+            </div>
 
-                <!-- Market Watchlist -->
-                <div class="card watchlist-card glass">
+            <!-- Detailed Spending Section -->
+            <div id="section-spending" class="view-section">
+                <div class="card glass full-width">
                     <div class="card-header">
-                        <h3>Market Watchlist</h3>
-                        <div class="header-actions">
-                            <span id="last-updated" style="font-size: 0.7rem; color: var(--text-secondary); margin-right: 0.5rem;"></span>
-                            <button class="icon-btn" id="refresh-stocks" title="Auto-fetch latest prices">
-                                <i data-lucide="refresh-cw"></i>
-                            </button>
-                            <button class="add-btn" id="add-stock-btn">
-                                <i data-lucide="plus"></i> Add Stock
-                            </button>
-                        </div>
+                        <h2>Detailed Spending Report</h2>
                     </div>
+                    <!-- Large Transaction Table -->
                     <div class="table-wrapper">
-                        <table class="watchlist-table">
+                         <table class="transaction-table full-table">
                             <thead>
                                 <tr>
-                                    <th>Symbol</th>
-                                    <th>Price</th>
-                                    <th>Change %</th>
-                                    <th>Action</th>
+                                    <th>Date</th>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                    <th>Account</th>
+                                    <th>Memo</th>
+                                    <th>Type</th>
+                                    <th class="admin-only" style="display: none;">Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="stock-list">
+                            <tbody id="full-transaction-list">
                                 <!-- Populated by JS -->
                             </tbody>
                         </table>
                     </div>
                 </div>
+            </div>
 
-                <!-- Real Estate -->
-                <div class="card property-card glass">
-                    <div class="card-header">
-                        <h3>Real Estate</h3>
-                        <div class="icon-circle"><i data-lucide="home"></i></div>
-                    </div>
-                    <div class="property-details">
-                        <div class="property-val">$845,000</div>
-                        <div class="trend positive">+0.7% Month</div>
-                    </div>
-                    <div class="property-info">Updated: Oct 30 • 12599 Property Ave.</div>
+            <!-- Placeholder for other sections -->
+            <div id="section-investments" class="view-section">
+                <div class="card glass">
+                    <h2>Investments Portfolio</h2>
+                    <p style="color: var(--text-secondary); margin-top: 1rem;">Detailed investment analysis coming soon...</p>
                 </div>
-            </section>
+            </div>
+            <div id="section-property" class="view-section">
+                <div class="card glass">
+                    <h2>Property Assets</h2>
+                    <p style="color: var(--text-secondary); margin-top: 1rem;">Asset details and location tracking coming soon...</p>
+                </div>
+            </div>
+            <div id="section-settings" class="view-section">
+                <div class="card glass">
+                    <h2>Account Settings</h2>
+                    <p style="color: var(--text-secondary); margin-top: 1rem;">Configure your preferences and API keys.</p>
+                </div>
+            </div>
         </main>
     </div>
     

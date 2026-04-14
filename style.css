@@ -592,3 +592,46 @@ body {
 .transaction-table .remove-btn {
     padding: 2px 4px;
 }
+
+/* Visibility Sections */
+.view-section {
+    display: none;
+}
+
+.view-section.active {
+    display: block;
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.nav-trigger-btn {
+    background: transparent;
+    border: none;
+    color: var(--accent-emerald);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0;
+    transition: transform 0.2s;
+}
+
+.nav-trigger-btn:hover {
+    transform: translateX(5px);
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+.full-table th, .full-table td {
+    padding: 1rem 0.5rem;
+}
+
+#admin-lock-btn.unlocked {
+    color: var(--accent-emerald);
+    background: rgba(16, 185, 129, 0.1);
+}

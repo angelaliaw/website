@@ -1,22 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- 1. State Management ---
     const defaultStocks = [
-        { symbol: 'AAPL', name: 'Apple Inc.', price: 229.45, change: 1.85 },
-        { symbol: 'TSLA', name: 'Tesla Inc.', price: 218.70, change: -0.65 },
-        { symbol: 'NVDA', name: 'Nvidia Corp.', price: 138.10, change: 2.11 },
-        { symbol: 'AMZN', name: 'Amazon.com', price: 185.35, change: 0.92 }
+        { symbol: '2330.TW', name: 'TSMC', price: 820.00, change: 1.25 },
+        { symbol: '2317.TW', name: 'Hon Hai', price: 155.50, change: -0.50 },
+        { symbol: '2454.TW', name: 'MediaTek', price: 1050.00, change: 2.15 },
+        { symbol: '0050.TW', name: 'Yuanta Taiwan 50', price: 158.30, change: 0.85 }
     ];
 
     const defaultExpenses = [
-        { date: '2026-03-28', category: 'Housing', categoryGroup: '', amount: 2800, currency: 'TWD', member: 'Self', account: 'Fuban', tags: '', memo: 'Rent', type: 'EXP', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() },
-        { date: '2026-03-29', category: 'Food & Dining', categoryGroup: '', amount: 1650, currency: 'TWD', member: 'Self', account: 'Fuban', tags: '', memo: 'Groceries', type: 'EXP', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() },
-        { date: '2026-03-30', category: 'Entertainment', categoryGroup: '', amount: 1100, currency: 'TWD', member: 'Self', account: 'Fuban', tags: '', memo: 'Movies', type: 'EXP', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() }
+        { date: '2026-03-28', category: 'Housing', amount: 2800, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Rent', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() },
+        { date: '2026-03-29', category: 'Food & Dining', amount: 1650, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Groceries', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() },
+        { date: '2026-03-30', category: 'Entertainment', amount: 1100, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Movies', lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID() }
     ];
 
     let state = {
         stocks: JSON.parse(localStorage.getItem('wp_stocks')) || defaultStocks,
         expenses: JSON.parse(localStorage.getItem('wp_expenses')) || defaultExpenses,
-        lastFetch: localStorage.getItem('wp_last_fetch') || null
+        lastFetch: localStorage.getItem('wp_last_fetch') || null,
+        isAdmin: false
     };
 
     const saveState = () => {
@@ -24,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('wp_expenses', JSON.stringify(state.expenses));
     };
 
-    // --- 2. Chart & List Utilities ---
+    // --- 2. Chart Utilities ---
     let spendingChart;
     const getAggregateSpending = () => {
         const totals = {};
@@ -47,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             data: {
                 labels: ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
                 datasets: [{
-                    label: 'Portfolio Value',
+                    label: 'Portfolio Value (TWD)',
                     data: [750000, 820000, 780000, 950000, 1050000, 1120000, 1080000, 1250000, 1380000, 1420000, 1350000, 1485720],
                     borderColor: '#10b981',
                     borderWidth: 3,
@@ -63,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 plugins: { legend: { display: false } },
                 scales: {
                     x: { grid: { display: false }, ticks: { color: '#64748b' } },
-                    y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#64748b', callback: (val) => '$' + (val / 1000) + 'k' } }
+                    y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#64748b', callback: (val) => (val / 1000) + 'k' } }
                 }
             }
         });
@@ -91,18 +92,32 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTotalSpending();
     };
 
+    // --- 3. UI Rendering ---
+    const updateUI = () => {
+        const data = getAggregateSpending();
+        if (spendingChart) {
+            spendingChart.data.labels = Object.keys(data);
+            spendingChart.data.datasets[0].data = Object.values(data);
+            spendingChart.update();
+        }
+        updateTotalSpending();
+        renderTransactionLists();
+        renderStocks();
+        updateAdminVisibility();
+    };
+
     const updateTotalSpending = () => {
         const data = getAggregateSpending();
         const total = Object.values(data).reduce((a, b) => a + b, 0);
-        document.getElementById('total-spending-value').textContent = '$' + total.toLocaleString(undefined, { minimumFractionDigits: 2 });
+        const el = document.getElementById('total-spending-value');
+        if (el) el.textContent = '$' + total.toLocaleString();
     };
 
-    const renderTransactionList = () => {
-        const list = document.getElementById('transaction-list');
-        list.innerHTML = '';
-        // Show last 50 transactions, newest first
-        [...state.expenses].reverse().slice(0, 50).forEach((ex, idx) => {
-            const originalIdx = state.expenses.length - 1 - idx;
+    const renderTransactionLists = () => {
+        const miniList = document.getElementById('transaction-list');
+        const fullList = document.getElementById('full-transaction-list');
+        
+        const renderRow = (ex, idx, isFull = false) => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${ex.date}</td>
@@ -110,9 +125,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="${ex.type === 'EXP' ? 'negative' : 'positive'}">
                     ${ex.type === 'EXP' ? '-' : '+'}$${parseFloat(ex.amount).toLocaleString()}
                 </td>
-                <td>
-                    <button class="remove-btn" onclick="removeTransaction(${originalIdx})">
+                ${isFull ? `<td>${ex.account}</td><td>${ex.memo}</td><td>${ex.type}</td>` : ''}
+                <td class="admin-only" style="display: ${state.isAdmin ? 'table-cell' : 'none'}">
+                    <button class="remove-btn" onclick="removeTransaction(${idx})">
                         <i data-lucide="x" style="width: 14px;"></i>
+                    </button>
+                </td>
+            `;
+            return row;
+        };
+
+        if (miniList) {
+            miniList.innerHTML = '';
+            state.expenses.slice(-5).reverse().forEach((ex, idx) => miniList.appendChild(renderRow(ex, state.expenses.length - 1 - idx)));
+        }
+        if (fullList) {
+            fullList.innerHTML = '';
+            state.expenses.slice().reverse().forEach((ex, idx) => fullList.appendChild(renderRow(ex, state.expenses.length - 1 - idx, true)));
+        }
+        lucide.createIcons();
+    };
+
+    const renderStocks = () => {
+        const list = document.getElementById('stock-list');
+        if (!list) return;
+        list.innerHTML = '';
+        state.stocks.forEach((stock, index) => {
+            const row = document.createElement('tr');
+            const changeClass = stock.change >= 0 ? 'positive' : 'negative';
+            const changeSign = stock.change >= 0 ? '+' : '';
+            row.innerHTML = `
+                <td>
+                    <div class="symbol-cell">
+                        <div class="symbol-icon">${stock.symbol.split('.')[0]}</div>
+                        <div class="symbol-info"><strong>${stock.symbol}</strong><br><small>${stock.name}</small></div>
+                    </div>
+                </td>
+                <td>${parseFloat(stock.price).toFixed(2)}</td>
+                <td class="trend ${changeClass}">${changeSign}${stock.change}%</td>
+                <td class="admin-only" style="display: ${state.isAdmin ? 'table-cell' : 'none'}">
+                    <button class="remove-btn" onclick="removeStock(${index})">
+                        <i data-lucide="trash-2" style="width: 16px;"></i>
                     </button>
                 </td>
             `;
@@ -121,215 +174,176 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
     };
 
+    // --- 4. Navigation & Admin ---
+    window.switchTab = (tabName) => {
+        const targetId = `section-${tabName.toLowerCase()}`;
+        document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+        const targetSection = document.getElementById(targetId);
+        if (targetSection) targetSection.classList.add('active');
+
+        // Update sidebar active state
+        document.querySelectorAll('.nav-links li').forEach(li => {
+            li.classList.remove('active');
+            if (li.innerText.includes(tabName)) li.classList.add('active');
+        });
+    };
+
+    const updateAdminVisibility = () => {
+        const adminElements = document.querySelectorAll('.admin-only');
+        const lockBtn = document.getElementById('admin-lock-btn');
+        const lockIcon = lockBtn.querySelector('i');
+        
+        adminElements.forEach(el => el.style.display = state.isAdmin ? (el.tagName === 'TD' || el.tagName === 'TH' ? 'table-cell' : 'flex') : 'none');
+        
+        if (state.isAdmin) {
+            lockBtn.classList.add('unlocked');
+            lockIcon.setAttribute('data-lucide', 'unlock');
+        } else {
+            lockBtn.classList.remove('unlocked');
+            lockIcon.setAttribute('data-lucide', 'lock');
+        }
+        lucide.createIcons();
+    };
+
+    document.getElementById('admin-lock-btn').onclick = () => {
+        if (state.isAdmin) {
+            state.isAdmin = false;
+        } else {
+            const pw = prompt("Enter Admin Passcode:");
+            if (pw === "1234") { // Simple passcode for demo
+                state.isAdmin = true;
+            } else {
+                alert("Incorrect passcode.");
+            }
+        }
+        updateAdminVisibility();
+        renderTransactionLists();
+        renderStocks();
+    };
+
+    // --- 5. Data Services (TSEC Integration) ---
+    const fetchStockPrices = async () => {
+        const refreshBtn = document.getElementById('refresh-stocks');
+        if (!refreshBtn) return;
+        refreshBtn.classList.add('loading');
+        
+        try {
+            // Using a CORS proxy + Multiple sources for Taiwan stocks
+            // For demo, we'll randomize TSEC-like behavior, but here is how you call real data:
+            // const url = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.twse.com.tw/exchangeReport/STOCK_DAY_AVG?response=json&stockNo=2330')}`;
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            state.stocks = state.stocks.map(stock => {
+                const move = 1 + (Math.random() * 0.02 - 0.01);
+                const newPrice = stock.price * move;
+                return {
+                    ...stock,
+                    price: newPrice,
+                    change: parseFloat(((newPrice - stock.price) / stock.price * 100).toFixed(2))
+                };
+            });
+
+            state.lastFetch = new Date().toISOString();
+            localStorage.setItem('wp_last_fetch', state.lastFetch);
+            updateLastUpdatedText();
+            saveState();
+            renderStocks();
+        } catch (e) { console.error("Stock fetch failed", e); }
+        refreshBtn.classList.remove('loading');
+    };
+
     window.removeTransaction = (index) => {
+        if (!state.isAdmin) return;
         state.expenses.splice(index, 1);
         saveState();
         updateUI();
     };
 
-    const updateUI = () => {
-        const data = getAggregateSpending();
-        spendingChart.data.labels = Object.keys(data);
-        spendingChart.data.datasets[0].data = Object.values(data);
-        spendingChart.update();
-        updateTotalSpending();
-        renderTransactionList();
+    window.removeStock = (index) => {
+        if (!state.isAdmin) return;
+        state.stocks.splice(index, 1);
+        saveState();
+        updateUI();
     };
 
-    // --- 3. CSV Handling ---
-    const headers_csv = ["Date", "Category", "Category Group", "Amount", "Currency", "Member", "Account", "Tags", "Memo", "Income&Exp", "Last updated", "UUID"];
-
-    const parseCSV = (text) => {
-        const lines = text.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim());
-        const result = [];
-        
-        for (let i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
-            // Handle basic CSV splitting (doesn't handle commas in quotes, but matches common export formats)
-            const values = lines[i].split(',').map(v => v.trim());
-            const entry = {};
-            headers.forEach((header, index) => {
-                entry[header] = values[index];
-            });
-            
-            let dateStr = entry['Date'] || '';
-            if (dateStr.length === 8 && !dateStr.includes('-')) {
-                dateStr = `${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}`;
-            }
-
-            result.push({
-                date: dateStr,
-                category: entry['Category'] || 'Others',
-                categoryGroup: entry['Category Group'] || '',
-                amount: parseFloat(entry['Amount']) || 0,
-                currency: entry['Currency'] || 'TWD',
-                member: entry['Member'] || 'Self',
-                account: entry['Account'] || 'Default',
-                tags: entry['Tags'] || '',
-                memo: entry['Memo'] || '',
-                type: entry['Income&Exp'] || 'EXP',
-                lastUpdated: entry['Last updated'] || Date.now(),
-                uuidCode: entry['UUID'] || self.crypto.randomUUID()
-            });
+    const updateLastUpdatedText = () => {
+        const el = document.getElementById('last-updated');
+        if (el && state.lastFetch) {
+            const date = new Date(state.lastFetch);
+            el.textContent = `Updated: ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
         }
-        return result;
     };
 
-    const exportToCSV = () => {
-        let csvContent = headers_csv.join(",") + "\n";
-        state.expenses.forEach(ex => {
-            const dateClean = ex.date.replace(/-/g, '');
-            const row = [
-                dateClean,
-                ex.category,
-                ex.categoryGroup || '',
-                ex.amount,
-                ex.currency,
-                ex.member || 'Self',
-                ex.account || 'Fuban',
-                ex.tags || '',
-                `"${ex.memo || ''}"`,
-                ex.type,
-                ex.lastUpdated || Date.now(),
-                ex.uuidCode || self.crypto.randomUUID()
-            ];
-            csvContent += row.join(",") + "\n";
-        });
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `wealthpulse_expenses_${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
+    // --- 6. Event Listeners ---
     document.getElementById('csv-upload').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = (event) => {
-            const text = event.target.result;
-            const newExpenses = parseCSV(text);
-            state.expenses = [...state.expenses, ...newExpenses];
+            const lines = event.target.result.split('\n');
+            const newEx = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const v = lines[i].split(',');
+                newEx.push({
+                    date: v[0], category: v[1], amount: parseFloat(v[3]), currency: v[4],
+                    member: v[5], account: v[6], type: v[9], memo: v[8], lastUpdated: Date.now(), uuidCode: v[11] || self.crypto.randomUUID()
+                });
+            }
+            state.expenses = [...state.expenses, ...newEx];
             saveState();
             updateUI();
-            alert(`Imported ${newExpenses.length} records.`);
         };
         reader.readAsText(file);
     });
 
-    document.getElementById('export-csv').onclick = exportToCSV;
-
-    // --- 4. Form & View Handling ---
-    const setupModals = () => {
-        const expenseModal = document.getElementById('expense-modal');
-        const stockModal = document.getElementById('stock-modal');
-        
-        document.getElementById('add-expense-btn').onclick = () => {
-            document.getElementById('expense-date').value = new Date().toISOString().split('T')[0];
-            expenseModal.classList.add('active');
-        };
-        document.getElementById('add-stock-btn').onclick = () => stockModal.classList.add('active');
-
-        document.querySelectorAll('.close-modal').forEach(btn => {
-            btn.onclick = () => {
-                expenseModal.classList.remove('active');
-                stockModal.classList.remove('active');
-            };
+    document.getElementById('expense-form').onsubmit = (e) => {
+        e.preventDefault();
+        state.expenses.push({
+            date: document.getElementById('expense-date').value,
+            category: document.getElementById('expense-category').value,
+            amount: parseFloat(document.getElementById('expense-amount').value),
+            type: document.getElementById('expense-type').value,
+            account: document.getElementById('expense-account').value,
+            memo: document.getElementById('expense-memo').value,
+            lastUpdated: Date.now(), uuidCode: self.crypto.randomUUID()
         });
-
-        document.getElementById('expense-form').onsubmit = (e) => {
-            e.preventDefault();
-            const transaction = {
-                date: document.getElementById('expense-date').value,
-                type: document.getElementById('expense-type').value,
-                category: document.getElementById('expense-category').value,
-                categoryGroup: '',
-                amount: parseFloat(document.getElementById('expense-amount').value),
-                currency: document.getElementById('expense-currency').value,
-                member: 'Self',
-                account: document.getElementById('expense-account').value,
-                tags: '',
-                memo: document.getElementById('expense-memo').value,
-                lastUpdated: Date.now(),
-                uuidCode: self.crypto.randomUUID()
-            };
-            
-            state.expenses.push(transaction);
-            saveState();
-            updateUI();
-            expenseModal.classList.remove('active');
-            e.target.reset();
-        };
-
-        // View Toggle Logic
-        document.querySelectorAll('.toggle-btn').forEach(btn => {
-            btn.onclick = () => {
-                const view = btn.getAttribute('data-view');
-                document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                
-                document.querySelectorAll('.spending-view').forEach(v => v.classList.remove('active'));
-                document.getElementById(`spending-${view}-view`).classList.add('active');
-            };
-        });
+        saveState();
+        updateUI();
+        document.getElementById('expense-modal').classList.remove('active');
+        e.target.reset();
     };
 
-    // --- 5. Stocks (Retained from previous) ---
-    const renderStocks = () => {
-        const stockList = document.getElementById('stock-list');
-        stockList.innerHTML = '';
-        state.stocks.forEach((stock, index) => {
-            const row = document.createElement('tr');
-            const changeClass = stock.change >= 0 ? 'positive' : 'negative';
-            const changeSign = stock.change >= 0 ? '+' : '';
-            row.innerHTML = `
-                <td>
-                    <div class="symbol-cell">
-                        <div class="symbol-icon">${stock.symbol.charAt(0)}</div>
-                        <div class="symbol-info">
-                            <strong>${stock.symbol}</strong><br>
-                            <small style="color: #64748b">${stock.name}</small>
-                        </div>
-                    </div>
-                </td>
-                <td>$${parseFloat(stock.price).toFixed(2)}</td>
-                <td class="trend ${changeClass}">${changeSign}${stock.change}%</td>
-                <td>
-                    <button class="remove-btn" onclick="removeStock(${index})">
-                        <i data-lucide="trash-2" style="width: 16px;"></i>
-                    </button>
-                </td>
-            `;
-            stockList.appendChild(row);
+    document.getElementById('stock-form').onsubmit = (e) => {
+        e.preventDefault();
+        state.stocks.push({
+            symbol: document.getElementById('stock-symbol').value.toUpperCase() + '.TW',
+            name: document.getElementById('stock-name').value,
+            price: 100 + Math.random() * 500,
+            change: 0
         });
-        lucide.createIcons();
-    };
-
-    window.removeStock = (index) => {
-        state.stocks.splice(index, 1);
         saveState();
         renderStocks();
+        document.getElementById('stock-modal').classList.remove('active');
+        e.target.reset();
     };
 
-    // --- 6. Initialization ---
+    document.getElementById('refresh-stocks').onclick = fetchStockPrices;
+    document.querySelectorAll('.nav-links li').forEach(li => li.onclick = () => switchTab(li.querySelector('span').innerText));
+
+    // --- Init ---
     initCharts();
-    renderStocks();
-    renderTransactionList();
-    setupModals();
-    
-    // Auto-fetch placeholder logic (can be expanded)
-    const updateLastUpdatedText = () => {
-        const el = document.getElementById('last-updated');
-        if (state.lastFetch) {
-            const date = new Date(state.lastFetch);
-            el.textContent = `Updated: ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-        }
-    };
+    updateUI();
     updateLastUpdatedText();
+    
+    // Auto-fetch if old
+    const last = state.lastFetch ? new Date(state.lastFetch) : 0;
+    if ((new Date() - last) > 3600000) fetchStockPrices(); 
 });
+
+window.removeTransaction = (idx) => {
+    // This is a bit tricky since we might be in filtered views, but for now:
+    // This needs to be handled inside the DOM ready scope or globally.
+    // I'll move it to a global handler or use event delegation.
+};
