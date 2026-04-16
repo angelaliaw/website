@@ -429,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 6. Start ---
     loadRepoData().then(() => {
+        updateYearDropdown();
         if (isUnlocked) {
             fetchMarketPrices();
             setInterval(fetchMarketPrices, 300000);
@@ -436,7 +437,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     initCharts();
-    updateYearDropdown();
     window.triggerUIUpdate();
     
     document.querySelectorAll('.nav-links li').forEach(li => {
