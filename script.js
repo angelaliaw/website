@@ -14,26 +14,32 @@ window.switchTab = (name) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. State ---
-    const defaultStocks = [
-        { symbol: '2330.TW', name: 'TSMC', price: 820.0, change: 1.2 },
-        { symbol: '2317.TW', name: 'Hon Hai', price: 155.0, change: -0.4 }
-    ];
-    const defaultExpenses = [
-        { date: '2026-03-28', category: 'Housing', amount: 2800, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Rent', uuidCode: self.crypto.randomUUID() },
-        { date: '2026-04-14', category: 'Food & Dining', amount: 1650, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Groceries', uuidCode: self.crypto.randomUUID() },
-        { date: '2024-01-15', category: 'Others', amount: 1200, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Old Record', uuidCode: self.crypto.randomUUID() }
-    ];
+    // --- 1. State & Privacy ---
+    const FAKE_STATE = {
+        expenses: [
+            { date: '20260401', category: 'Food', amount: 450, type: 'EXP', account: 'Cash', memo: 'Example Lunch', uuidCode: 'f1' },
+            { date: '20260402', category: 'Housing', amount: 2500, type: 'EXP', account: 'Bank', memo: 'Monthly Rent', uuidCode: 'f2' },
+            { date: '20260405', category: 'Salary', amount: 5000, type: 'INC', account: 'Bank', memo: 'Payroll', uuidCode: 'f3' }
+        ],
+        stocks: [
+            { symbol: 'AAPL', name: 'Apple Inc.', purchasePrice: 150, shares: 10, logo: 'A', price: 175, change: 1.2 },
+            { symbol: 'TSLA', name: 'Tesla, Inc.', purchasePrice: 200, shares: 5, logo: 'T', price: 185, change: -0.5 }
+        ]
+    };
+
+    let realData = { stocks: [], expenses: [] };
+    let isUnlocked = sessionStorage.getItem('wp_unlocked') === 'true';
 
     let state = {
-        stocks: JSON.parse(localStorage.getItem('wp_stocks')) || defaultStocks,
-        expenses: JSON.parse(localStorage.getItem('wp_expenses')) || defaultExpenses,
-        isAdmin: false
+        stocks: isUnlocked ? [] : [...FAKE_STATE.stocks],
+        expenses: isUnlocked ? [] : [...FAKE_STATE.expenses],
+        property: { value: 1250000, growth: 12.5 }
     };
 
     const save = () => {
-        localStorage.setItem('wp_stocks', JSON.stringify(state.stocks));
-        localStorage.setItem('wp_expenses', JSON.stringify(state.expenses));
+        if (!isUnlocked) return;
+        localStorage.setItem('wp_stocks', JSON.stringify(realData.stocks));
+        localStorage.setItem('wp_expenses', JSON.stringify(realData.expenses));
     };
 
     // --- New: Load from repo-backed CSV & JSON ---
@@ -41,52 +47,41 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // 1. Load Stocks
             const stockRes = await fetch('./data/stocks.json');
-            if (stockRes.ok) {
-                const repoStocks = await stockRes.json();
-                if (localStorage.getItem('wp_stocks') === null) {
-                    state.stocks = repoStocks;
-                }
-            }
+            if (stockRes.ok) realData.stocks = await stockRes.json();
 
             // 2. Load CSV Data
-            // We hardcode the filename they provided, but ideally this would be dynamic
             const csvUrl = './data/Pennyworth_Income&Expense_20260328211903.csv';
             const csvRes = await fetch(csvUrl);
-            if (!csvRes.ok) throw new Error("CSV not found");
-            
-            const csvText = await csvRes.text();
-            const lines = csvText.split('\n');
-            const heads = lines[0].split(',').map(h => h.trim());
-            const added = [];
-            
-            for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const v = lines[i].split(',').map(c => c.trim());
-                
-                // Fixed logic: The last 3 columns are always (Income&Expense, Last updated, UUID)
-                // Even if "Memo" (v[8]) contains commas, INC/EXP will be at v[v.length - 3]
-                const typeVal = v[v.length - 3] || 'EXP';
-                const uuidVal = v[v.length - 1] || self.crypto.randomUUID();
-                
-                added.push({ 
-                    date: v[0] || '', 
-                    category: v[1] || 'Others', 
-                    amount: parseFloat(v[3]) || 0, 
-                    currency: v[4] || 'TWD', 
-                    account: v[6] || 'Default', 
-                    type: typeVal.toUpperCase().includes('INC') ? 'INC' : 'EXP', 
-                    memo: v[8] || '', 
-                    uuidCode: uuidVal
-                });
+            if (csvRes.ok) {
+                const csvText = await csvRes.text();
+                const lines = csvText.split('\n');
+                const added = [];
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    const v = lines[i].split(',').map(c => c.trim());
+                    const typeVal = v[v.length - 3] || 'EXP';
+                    added.push({ 
+                        date: v[0] || '', category: v[1] || 'Others', amount: parseFloat(v[3]) || 0, 
+                        currency: v[4] || 'TWD', account: v[6] || 'Default', 
+                        type: typeVal.toUpperCase().includes('INC') ? 'INC' : 'EXP', 
+                        memo: v[8] || '', uuidCode: v[v.length - 1] || self.crypto.randomUUID()
+                    });
+                }
+                realData.expenses = added;
             }
 
-            if (localStorage.getItem('wp_expenses') === null) {
-                state.expenses = added;
+            // Apply data based on lock status
+            if (isUnlocked) {
+                state.expenses = realData.expenses;
+                state.stocks = realData.stocks;
+            } else {
+                state.expenses = [...FAKE_STATE.expenses];
+                state.stocks = [...FAKE_STATE.stocks];
             }
             
             window.triggerUIUpdate();
         } catch (e) {
-            console.log("Repo data fetch failed or missing:", e.message);
+            console.log("Data fetch failed:", e.message);
         }
     };
 
@@ -365,23 +360,43 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const updateAdminUI = () => {
-        const els = document.querySelectorAll('.admin-only');
-        els.forEach(el => el.style.display = state.isAdmin ? (el.tagName === 'TD' ? 'table-cell' : 'flex') : 'none');
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = isUnlocked ? (el.tagName === 'TD' ? 'table-cell' : 'flex') : 'none';
+        });
         const lock = document.getElementById('admin-lock-btn');
         if (lock) {
-            lock.classList.toggle('unlocked', state.isAdmin);
-            lock.querySelector('i')?.setAttribute('data-lucide', state.isAdmin ? 'unlock' : 'lock');
+            lock.innerHTML = isUnlocked ? '<i data-lucide="unlock"></i>' : '<i data-lucide="lock"></i>';
+            lock.style.background = isUnlocked ? 'var(--accent-emerald)' : 'rgba(255,255,255,0.05)';
+            lucide.createIcons();
         }
     };
 
-    window.delTask = (id) => { if (state.isAdmin && confirm("Delete?")) { state.expenses.splice(id,1); save(); window.triggerUIUpdate(); } };
-    window.delStock = (id) => { if (state.isAdmin && confirm("Delete?")) { state.stocks.splice(id,1); save(); window.triggerUIUpdate(); } };
+    window.delTask = (id) => { if (isUnlocked && confirm("Delete?")) { state.expenses.splice(id,1); save(); window.triggerUIUpdate(); } };
+    window.delStock = (id) => { if (isUnlocked && confirm("Delete?")) { state.stocks.splice(id,1); save(); window.triggerUIUpdate(); } };
 
     // --- 5. Events ---
     document.getElementById('admin-lock-btn').onclick = () => {
-        if (state.isAdmin) state.isAdmin = false;
-        else if (prompt("Pass: 1234") === "1234") state.isAdmin = true;
-        window.triggerUIUpdate();
+        if (isUnlocked) {
+            if (confirm("Lock and hide personal data?")) {
+                isUnlocked = false;
+                sessionStorage.removeItem('wp_unlocked');
+                state.expenses = [...FAKE_STATE.expenses];
+                state.stocks = [...FAKE_STATE.stocks];
+                window.triggerUIUpdate();
+            }
+        } else {
+            const pass = prompt("Enter Password to view real data:");
+            if (pass === "djijS536ws!") {
+                isUnlocked = true;
+                sessionStorage.setItem('wp_unlocked', 'true');
+                state.expenses = realData.expenses;
+                state.stocks = realData.stocks;
+                window.triggerUIUpdate();
+                fetchMarketPrices();
+            } else {
+                alert("Incorrect Password.");
+            }
+        }
     };
 
     ['filter-year', 'filter-month', 'filter-category'].forEach(id => {
@@ -389,44 +404,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) el.onchange = window.triggerUIUpdate;
     });
 
-    document.getElementById('csv-upload')?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const lines = event.target.result.split('\n');
-            const heads = lines[0].split(',').map(h => h.trim());
-            const added = [];
-            for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const v = lines[i].split(',').map(c => c.trim());
-                const entry = {}; heads.forEach((h, idx) => entry[h] = v[idx]);
-                added.push({ date: entry['Date'] || '', category: entry['Category'] || 'Others', amount: parseFloat(entry['Amount']) || 0, currency: entry['Currency'] || 'TWD', account: entry['Account'] || 'Default', type: entry['Income&Exp'] || 'EXP', memo: entry['Memo'] || '', uuidCode: entry['UUID'] || self.crypto.randomUUID() });
-            }
-            state.expenses = [...state.expenses, ...added];
-            save(); updateYearDropdown(); window.triggerUIUpdate(); alert("Success!");
-        };
-        reader.readAsText(file);
-    });
-
-    document.getElementById('expense-form').onsubmit = (e) => {
-        e.preventDefault();
-        state.expenses.push({ date: document.getElementById('expense-date').value, category: document.getElementById('expense-category').value, amount: parseFloat(document.getElementById('expense-amount').value), type: document.getElementById('expense-type').value, account: document.getElementById('expense-account').value, memo: document.getElementById('expense-memo').value, uuidCode: self.crypto.randomUUID() });
-        save(); updateYearDropdown(); window.triggerUIUpdate(); document.getElementById('expense-modal').classList.remove('active'); e.target.reset();
-    };
-
     // --- 6. Start ---
     loadRepoData().then(() => {
-        fetchMarketPrices();
-        setInterval(fetchMarketPrices, 300000); // 5 min auto-refresh
+        if (isUnlocked) {
+            fetchMarketPrices();
+            setInterval(fetchMarketPrices, 300000);
+        }
     });
     
     initCharts();
     updateYearDropdown();
     window.triggerUIUpdate();
-    document.querySelectorAll('.nav-links li').forEach(li => li.onclick = () => window.switchTab(li.querySelector('span').innerText));
+    
+    document.querySelectorAll('.nav-links li').forEach(li => {
+        li.onclick = () => window.switchTab(li.querySelector('span').innerText);
+    });
     
     document.getElementById('refresh-stocks').onclick = () => {
-        fetchMarketPrices();
+        if (isUnlocked) fetchMarketPrices();
+        else alert("Please unlock to fetch live market data.");
     };
 });
