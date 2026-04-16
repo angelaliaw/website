@@ -36,6 +36,58 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('wp_expenses', JSON.stringify(state.expenses));
     };
 
+    // --- New: Load from repo-backed CSV & JSON ---
+    const loadRepoData = async () => {
+        try {
+            // 1. Load Stocks
+            const stockRes = await fetch('./data/stocks.json');
+            if (stockRes.ok) {
+                const repoStocks = await stockRes.json();
+                if (localStorage.getItem('wp_stocks') === null) {
+                    state.stocks = repoStocks;
+                }
+            }
+
+            // 2. Load CSV Data
+            // We hardcode the filename they provided, but ideally this would be dynamic
+            const csvUrl = './data/Pennyworth_Income&Expense_20260328211903.csv';
+            const csvRes = await fetch(csvUrl);
+            if (!csvRes.ok) throw new Error("CSV not found");
+            
+            const csvText = await csvRes.text();
+            const lines = csvText.split('\n');
+            const heads = lines[0].split(',').map(h => h.trim());
+            const added = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                // Simple CSV split (handles basic cases, might need regex for commas in quotes)
+                const v = lines[i].split(',').map(c => c.trim());
+                const entry = {}; 
+                heads.forEach((h, idx) => entry[h] = v[idx]);
+                
+                added.push({ 
+                    date: entry['Date'] || '', 
+                    category: entry['Category'] || 'Others', 
+                    amount: parseFloat(entry['Amount']) || 0, 
+                    currency: entry['Currency'] || 'TWD', 
+                    account: entry['Account'] || 'Default', 
+                    type: entry['Income&Expense'] || 'EXP', 
+                    memo: entry['Memo'] || '', 
+                    uuidCode: entry['UUID'] || self.crypto.randomUUID() 
+                });
+            }
+
+            if (localStorage.getItem('wp_expenses') === null) {
+                state.expenses = added;
+            }
+            
+            window.triggerUIUpdate();
+        } catch (e) {
+            console.log("Repo data fetch failed or missing:", e.message);
+        }
+    };
+
     // --- 2. Utils & Parsing ---
     const parseDateObj = (dateStr) => {
         if (!dateStr) return { y: '0000', m: '00' };
@@ -263,6 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 6. Start ---
+    loadRepoData();
     initCharts();
     updateYearDropdown();
     window.triggerUIUpdate();
