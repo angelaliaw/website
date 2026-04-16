@@ -61,20 +61,22 @@ document.addEventListener('DOMContentLoaded', () => {
             
             for (let i = 1; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
-                // Simple CSV split (handles basic cases, might need regex for commas in quotes)
                 const v = lines[i].split(',').map(c => c.trim());
-                const entry = {}; 
-                heads.forEach((h, idx) => entry[h] = v[idx]);
+                
+                // Fixed logic: The last 3 columns are always (Income&Expense, Last updated, UUID)
+                // Even if "Memo" (v[8]) contains commas, INC/EXP will be at v[v.length - 3]
+                const typeVal = v[v.length - 3] || 'EXP';
+                const uuidVal = v[v.length - 1] || self.crypto.randomUUID();
                 
                 added.push({ 
-                    date: entry['Date'] || '', 
-                    category: entry['Category'] || 'Others', 
-                    amount: parseFloat(entry['Amount']) || 0, 
-                    currency: entry['Currency'] || 'TWD', 
-                    account: entry['Account'] || 'Default', 
-                    type: entry['Income&Expense'] || 'EXP', 
-                    memo: entry['Memo'] || '', 
-                    uuidCode: entry['UUID'] || self.crypto.randomUUID() 
+                    date: v[0] || '', 
+                    category: v[1] || 'Others', 
+                    amount: parseFloat(v[3]) || 0, 
+                    currency: v[4] || 'TWD', 
+                    account: v[6] || 'Default', 
+                    type: typeVal.toUpperCase().includes('INC') ? 'INC' : 'EXP', 
+                    memo: v[8] || '', 
+                    uuidCode: uuidVal
                 });
             }
 
