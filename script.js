@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const defaultExpenses = [
         { date: '2026-03-28', category: 'Housing', amount: 2800, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Rent', uuidCode: self.crypto.randomUUID() },
         { date: '2026-04-14', category: 'Food & Dining', amount: 1650, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Groceries', uuidCode: self.crypto.randomUUID() },
-        { date: '2026-04-15', category: 'Others', amount: 15000, type: 'INC', currency: 'TWD', account: 'Fuban', memo: 'Salary', uuidCode: self.crypto.randomUUID() }
+        { date: '2024-01-15', category: 'Others', amount: 1200, type: 'EXP', currency: 'TWD', account: 'Fuban', memo: 'Old Record', uuidCode: self.crypto.randomUUID() }
     ];
 
     let state = {
@@ -36,16 +36,52 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('wp_expenses', JSON.stringify(state.expenses));
     };
 
-    // --- 2. Utils ---
+    // --- 2. Utils & Parsing ---
     const parseDateObj = (dateStr) => {
-        // Robust parsing for YYYY-MM-DD or YYYY/MM/DD or YYYYMMDD
         if (!dateStr) return { y: '0000', m: '00' };
-        let clean = dateStr.replace(/[\/-]/g, '-');
-        if (clean.length === 8 && !clean.includes('-')) {
-             clean = `${clean.substring(0,4)}-${clean.substring(4,6)}-${clean.substring(6,8)}`;
+        let str = String(dateStr).trim();
+        // Handle YYYYMMDD
+        if (str.length === 8 && !str.includes('-') && !str.includes('/')) {
+            return { y: str.substring(0, 4), m: str.substring(4, 6) };
         }
-        const parts = clean.split('-');
-        return { y: parts[0], m: parts[1] };
+        // Handle YYYY-MM-DD or YYYY/MM/DD
+        const parts = str.split(/[-/]/);
+        if (parts.length >= 2) {
+            // Assume YYYY at start if length is 4
+            if (parts[0].length === 4) return { y: parts[0], m: parts[1].padStart(2, '0') };
+            // Assume YYYY at end if length is 4
+            if (parts[2]?.length === 4) return { y: parts[2], m: parts[0].padStart(2, '0') };
+        }
+        return { y: '0000', m: '00' };
+    };
+
+    const updateYearDropdown = () => {
+        const yearSelect = document.getElementById('filter-year');
+        if (!yearSelect) return;
+        
+        const years = new Set();
+        state.expenses.forEach(ex => {
+            const { y } = parseDateObj(ex.date);
+            if (y && y !== '0000') years.add(y);
+        });
+
+        const sortedYears = Array.from(years).sort((a, b) => b - a);
+        const currentValue = yearSelect.value;
+        
+        let options = '<option value="all">All</option>';
+        sortedYears.forEach(y => {
+            options += `<option value="${y}">${y}</option>`;
+        });
+        yearSelect.innerHTML = options;
+        
+        // Restore value if it exists, else default to newest year
+        if (currentValue && [...years].includes(currentValue)) {
+            yearSelect.value = currentValue;
+        } else if (sortedYears.length > 0) {
+            yearSelect.value = sortedYears[0];
+        } else {
+            yearSelect.value = 'all';
+        }
     };
 
     // --- 3. Charts ---
@@ -72,19 +108,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const curM = (now.getMonth() + 1).toString().padStart(2, '0');
         const curY = now.getFullYear().toString();
 
-        // 4a. Overview Totals (Always Current Month)
-        let ovInc = 0, ovExp = 0, ovExpData = {};
+        // Totals mapping
+        let detExp = 0, detInc = 0, detExpData = {}, filtered = [];
+        let ovExp = 0, ovInc = 0, ovExpData = {};
+
         state.expenses.forEach(ex => {
             const { y, m } = parseDateObj(ex.date);
+            const amount = parseFloat(ex.amount) || 0;
+
+            // Overview (Home) filter: Current Month only
             if (y === curY && m === curM) {
-                if (ex.type === 'INC') ovInc += parseFloat(ex.amount);
+                if (ex.type === 'INC') ovInc += amount;
                 else {
-                    ovExp += parseFloat(ex.amount);
-                    ovExpData[ex.category] = (ovExpData[ex.category] || 0) + parseFloat(ex.amount);
+                    ovExp += amount;
+                    ovExpData[ex.category] = (ovExpData[ex.category] || 0) + amount;
+                }
+            }
+
+            // Detailed Report filter
+            const yearMatch = (yF === 'all') || (y === yF);
+            const monthMatch = (mF === 'all') || (mF === 'current' && m === curM && y === curY) || (m === mF);
+            const catMatch = (cF === 'all') || (ex.category === cF);
+
+            if (yearMatch && monthMatch && catMatch) {
+                filtered.push(ex);
+                if (ex.type === 'INC') detInc += amount;
+                else {
+                    detExp += amount;
+                    detExpData[ex.category] = (detExpData[ex.category] || 0) + amount;
                 }
             }
         });
 
+        // Update Overview UI
         const netOv = document.getElementById('net-income-value');
         if (netOv) {
             const net = ovInc - ovExp;
@@ -99,24 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (label) label.textContent = '$' + ovExp.toLocaleString();
         }
 
-        // 4b. Detailed Report Logic
-        let detExp = 0, detInc = 0, detExpData = {}, filtered = [];
-        state.expenses.forEach(ex => {
-            const { y, m } = parseDateObj(ex.date);
-            const yearMatch = (yF === 'all') || (y === yF);
-            const monthMatch = (mF === 'all') || (mF === 'current' && m === curM && y === curY) || (m === mF);
-            const catMatch = (cF === 'all') || (ex.category === cF);
-
-            if (yearMatch && monthMatch && catMatch) {
-                filtered.push(ex);
-                if (ex.type === 'INC') detInc += parseFloat(ex.amount);
-                else {
-                    detExp += parseFloat(ex.amount);
-                    detExpData[ex.category] = (detExpData[ex.category] || 0) + parseFloat(ex.amount);
-                }
-            }
-        });
-
+        // Update Detailed UI
         const setVal = (id, val) => { if (document.getElementById(id)) document.getElementById(id).textContent = '$' + val.toLocaleString(); };
         setVal('stats-total-exp', detExp);
         setVal('stats-total-inc', detInc);
@@ -133,27 +172,23 @@ document.addEventListener('DOMContentLoaded', () => {
             detailedChart.update();
         }
 
-        // 4c. Rendering Tables
+        // Tables
         const fullBody = document.getElementById('full-transaction-list');
         if (fullBody) {
-            fullBody.innerHTML = '';
-            if (filtered.length === 0) {
-                fullBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--text-secondary);">No data found for this selection. Try changing the filters!</td></tr>`;
-            } else {
-                filtered.reverse().forEach(ex => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td class="${ex.type === 'EXP' ? 'negative' : 'positive'}">${ex.type === 'EXP' ? '-' : '+'}$${parseFloat(ex.amount).toLocaleString()}</td>
-                        <td>${ex.account}</td><td>${ex.memo}</td>
-                        <td class="admin-only"><button class="remove-btn" onclick="window.delTask(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
-                    fullBody.appendChild(row);
-                });
-            }
+            fullBody.innerHTML = filtered.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--text-secondary);">No data found for this selection.</td></tr>` : '';
+            filtered.sort((a,b) => b.date.localeCompare(a.date)).forEach(ex => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td class="${ex.type === 'EXP' ? 'negative' : 'positive'}">${ex.type === 'EXP' ? '-' : '+'}$${parseFloat(ex.amount).toLocaleString()}</td>
+                    <td>${ex.account}</td><td>${ex.memo}</td>
+                    <td class="admin-only"><button class="remove-btn" onclick="window.delTask(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
+                fullBody.appendChild(row);
+            });
         }
 
         const miniBody = document.getElementById('transaction-list');
         if (miniBody) {
             miniBody.innerHTML = '';
-            state.expenses.filter(e => e.type === 'EXP').slice(-5).reverse().forEach(ex => {
+            state.expenses.filter(e => e.type === 'EXP').sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5).forEach(ex => {
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td>$${parseFloat(ex.amount).toLocaleString()}</td><td class="admin-only"><button class="remove-btn" onclick="window.delTask(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
                 miniBody.appendChild(row);
@@ -216,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 added.push({ date: entry['Date'] || '', category: entry['Category'] || 'Others', amount: parseFloat(entry['Amount']) || 0, currency: entry['Currency'] || 'TWD', account: entry['Account'] || 'Default', type: entry['Income&Exp'] || 'EXP', memo: entry['Memo'] || '', uuidCode: entry['UUID'] || self.crypto.randomUUID() });
             }
             state.expenses = [...state.expenses, ...added];
-            save(); window.triggerUIUpdate(); alert("Success!");
+            save(); updateYearDropdown(); window.triggerUIUpdate(); alert("Success!");
         };
         reader.readAsText(file);
     });
@@ -224,17 +259,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('expense-form').onsubmit = (e) => {
         e.preventDefault();
         state.expenses.push({ date: document.getElementById('expense-date').value, category: document.getElementById('expense-category').value, amount: parseFloat(document.getElementById('expense-amount').value), type: document.getElementById('expense-type').value, account: document.getElementById('expense-account').value, memo: document.getElementById('expense-memo').value, uuidCode: self.crypto.randomUUID() });
-        save(); window.triggerUIUpdate(); document.getElementById('expense-modal').classList.remove('active'); e.target.reset();
-    };
-
-    document.getElementById('stock-form').onsubmit = (e) => {
-        e.preventDefault();
-        state.stocks.push({ symbol: document.getElementById('stock-symbol').value.toUpperCase() + '.TW', name: document.getElementById('stock-name').value, price: 100+Math.random()*500, change: 0 });
-        save(); window.triggerUIUpdate(); document.getElementById('stock-modal').classList.remove('active'); e.target.reset();
+        save(); updateYearDropdown(); window.triggerUIUpdate(); document.getElementById('expense-modal').classList.remove('active'); e.target.reset();
     };
 
     // --- 6. Start ---
-    initCharts(); window.triggerUIUpdate();
+    initCharts();
+    updateYearDropdown();
+    window.triggerUIUpdate();
     document.querySelectorAll('.nav-links li').forEach(li => li.onclick = () => window.switchTab(li.querySelector('span').innerText));
     document.getElementById('refresh-stocks').onclick = async () => {
         const b = document.getElementById('refresh-stocks'); b.classList.add('loading');
