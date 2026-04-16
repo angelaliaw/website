@@ -15,27 +15,12 @@ window.switchTab = (name) => {
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- 1. State & Privacy Mode ---
-    const FAKE_STATE = {
-        expenses: [
-            { date: '20260401', category: 'Travel', amount: 15400, type: 'EXP', account: 'Luxury Card', memo: 'Maldives Resort Booking', uuidCode: 'f1' },
-            { date: '20260405', category: 'Shopping', amount: 8200, type: 'EXP', account: 'Premium Credit', memo: 'Designer Watch Purchase', uuidCode: 'f2' },
-            { date: '20260410', category: 'Lifestyle', amount: 300, type: 'EXP', account: 'Cash', memo: 'Caviar Dinner', uuidCode: 'f3' },
-            { date: '20260415', category: 'Salary', amount: 25000, type: 'INC', account: 'Direct Deposit', memo: 'Executive Bonus', uuidCode: 'f4' },
-            { date: '20260320', category: 'Housing', amount: 4500, type: 'EXP', account: 'Auto-Pay', memo: 'Beverly Hills Suite Rent', uuidCode: 'f5' }
-        ],
-        stocks: [
-            { symbol: 'SPCE', name: 'Virgin Galactic', purchasePrice: 50.0, shares: 1000, logo: 'V', price: 2.50, change: -95.0 },
-            { symbol: 'BTC-USD', name: 'Bitcoin', purchasePrice: 20000, shares: 0.5, logo: 'B', price: 65000, change: 325.0 }
-        ]
-    };
-
     let realData = { stocks: [], expenses: [] };
-    // Force false if NOT explicitly set to true in this session
     let isUnlocked = sessionStorage.getItem('wp_unlocked') === 'true';
 
     let state = {
-        stocks: isUnlocked ? [] : [...FAKE_STATE.stocks],
-        expenses: isUnlocked ? [] : [...FAKE_STATE.expenses],
+        stocks: [],
+        expenses: [],
         property: { value: 1250000, growth: 12.5 }
     };
 
@@ -48,12 +33,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- New: Load from repo-backed CSV & JSON ---
     const loadRepoData = async () => {
         try {
-            // 1. Load Stocks
-            const stockRes = await fetch('./data/stocks.json');
-            if (stockRes.ok) realData.stocks = await stockRes.json();
+            // 1. Determine which files to load
+            const csvUrl = isUnlocked 
+                ? './data/Pennyworth_Income&Expense_20260328211903.csv' 
+                : './data/dummy_transactions.csv';
+            
+            // 2. Load Stocks
+            if (isUnlocked) {
+                const stockRes = await fetch('./data/stocks.json');
+                if (stockRes.ok) state.stocks = await stockRes.json();
+            } else {
+                state.stocks = [
+                    { symbol: 'AAPL', name: 'Apple Inc.', purchasePrice: 150, shares: 10, logo: 'A', price: 175, change: 1.2 },
+                    { symbol: 'TSLA', name: 'Tesla, Inc.', purchasePrice: 200, shares: 5, logo: 'T', price: 185, change: -0.5 }
+                ];
+            }
 
-            // 2. Load CSV Data
-            const csvUrl = './data/Pennyworth_Income&Expense_20260328211903.csv';
+            // 3. Load CSV Data
             const csvRes = await fetch(csvUrl);
             if (csvRes.ok) {
                 const csvText = await csvRes.text();
@@ -70,16 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         memo: v[8] || '', uuidCode: v[v.length - 1] || self.crypto.randomUUID()
                     });
                 }
-                realData.expenses = added;
-            }
-
-            // Apply data based on lock status
-            if (isUnlocked) {
-                state.expenses = realData.expenses;
-                state.stocks = realData.stocks;
-            } else {
-                state.expenses = [...FAKE_STATE.expenses];
-                state.stocks = [...FAKE_STATE.stocks];
+                state.expenses = added;
+                if (isUnlocked) realData.expenses = [...added];
             }
             
             window.triggerUIUpdate();
@@ -383,19 +371,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (confirm("Lock and hide personal data?")) {
                 isUnlocked = false;
                 sessionStorage.removeItem('wp_unlocked');
-                state.expenses = [...FAKE_STATE.expenses];
-                state.stocks = [...FAKE_STATE.stocks];
-                window.triggerUIUpdate();
+                loadRepoData();
             }
         } else {
             const pass = prompt("Enter Password to view real data:");
             if (pass === "djijS536ws!") {
                 isUnlocked = true;
                 sessionStorage.setItem('wp_unlocked', 'true');
-                state.expenses = realData.expenses;
-                state.stocks = realData.stocks;
-                window.triggerUIUpdate();
-                fetchMarketPrices();
+                loadRepoData().then(() => fetchMarketPrices());
             } else {
                 alert("Incorrect Password.");
             }

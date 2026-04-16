@@ -1,0 +1,8 @@
+Date,Category,Category Group,Amount,Currency,Member,Account,Tags,Memo,Income&Expense,Last updated,UUID
+20260401,Travel,,15400,TWD,Self,Premium Card,,Maldives Resort Booking,EXP,2026-04-01 10:00:00,fake-1
+20260405,Shopping,,8200,TWD,Self,Luxury Account,,Designer Watch Purchase,EXP,2026-04-05 14:20:00,fake-2
+20260410,Dining,,12500,TWD,Self,Cash,,Caviar Tasting Dinner,EXP,2026-04-10 20:30:00,fake-3
+20260415,Salary,,185000,TWD,Self,Direct Deposit,,Executive Monthly Bonus,INC,2026-04-15 09:00:00,fake-4
+20260328,Housing,,45000,TWD,Self,Auto-Debit,,Penthouse Monthly Rent,EXP,2026-03-28 11:00:00,fake-5
+20260325,Investment,,50000,TWD,Self,Brokerage,,S&P 500 Index Fund,EXP,2026-03-25 10:15:00,fake-6
+20260322,Others,,1200,TWD,Self,Cash,,Handcrafted Coffee Beans,EXP,2026-03-22 08:45:00,fake-7
