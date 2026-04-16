@@ -393,29 +393,33 @@ document.addEventListener('DOMContentLoaded', () => {
     window.delTask = (id) => { if (isUnlocked && confirm("Delete?")) { state.expenses.splice(id,1); save(); window.triggerUIUpdate(); } };
     window.delStock = (id) => { if (isUnlocked && confirm("Delete?")) { state.stocks.splice(id,1); save(); window.triggerUIUpdate(); } };
 
-    // --- 5. Events ---
-    // Hidden Trigger: Double click the sidebar logo to unlock/lock
+    // Hidden Trigger: Double click logo or click "P" in top right
+    const pTrigger = document.getElementById('p-trigger');
     const logo = document.querySelector('.logo');
+    
+    const toggleLock = () => {
+        if (isUnlocked) {
+            if (confirm("Lock and hide personal data?")) {
+                isUnlocked = false;
+                sessionStorage.removeItem('wp_unlocked');
+                loadRepoData();
+            }
+        } else {
+            const pass = prompt("Enter Password to view real data:");
+            if (pass === "djijS536ws!") {
+                isUnlocked = true;
+                sessionStorage.setItem('wp_unlocked', 'true');
+                loadRepoData().then(() => fetchMarketPrices());
+            } else {
+                alert("Incorrect Password.");
+            }
+        }
+    };
+
+    if (pTrigger) pTrigger.onclick = toggleLock;
     if (logo) {
         logo.style.cursor = 'pointer';
-        logo.ondblclick = () => {
-            if (isUnlocked) {
-                if (confirm("Lock and hide personal data?")) {
-                    isUnlocked = false;
-                    sessionStorage.removeItem('wp_unlocked');
-                    loadRepoData();
-                }
-            } else {
-                const pass = prompt("Enter Password to view real data:");
-                if (pass === "djijS536ws!") {
-                    isUnlocked = true;
-                    sessionStorage.setItem('wp_unlocked', 'true');
-                    loadRepoData().then(() => fetchMarketPrices());
-                } else {
-                    alert("Incorrect Password.");
-                }
-            }
-        };
+        logo.ondblclick = toggleLock;
     }
 
     ['filter-year', 'filter-month', 'filter-category'].forEach(id => {
