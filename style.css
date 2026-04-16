@@ -732,3 +732,27 @@ body {
 @media (max-width: 1100px) {
     .spending-dashboard { grid-template-columns: 1fr; }
 }
+/* Health Card & Assessment */
+.health-card {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
+}
+
+.health-card h3 {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.assessment-box {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    border-left: 4px solid var(--accent-emerald);
+}

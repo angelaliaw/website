@@ -141,6 +141,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 4. Logic ---
     // --- 4. Logic ---
+    const updateCategoryDropdown = () => {
+        const select = document.getElementById('filter-category');
+        if (!select) return;
+        const currentVal = select.value;
+        const cats = [...new Set(state.expenses.map(e => e.category))].sort();
+        select.innerHTML = '<option value="all">All Categories</option>';
+        cats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c; opt.textContent = c;
+            select.appendChild(opt);
+        });
+        select.value = currentVal;
+    };
+
     window.triggerUIUpdate = () => {
         const yF = document.getElementById('filter-year')?.value || 'all';
         const mF = document.getElementById('filter-month')?.value || 'all';
@@ -150,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const curM = (now.getMonth() + 1).toString().padStart(2, '0');
         const curY = now.getFullYear().toString();
 
-        let totalBalance = 0; // Cumulative across all time
+        let totalBalance = 0;
         let detExp = 0, detInc = 0, detExpData = {}, filtered = [];
         let ovExp = 0, ovInc = 0, ovExpData = {};
 
@@ -159,11 +173,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const amount = parseFloat(ex.amount) || 0;
             const isInc = (ex.type === 'INC');
 
-            // 1. Cumulative Balance Logic (Net Worth)
             if (isInc) totalBalance += amount;
             else totalBalance -= amount;
 
-            // 2. Overview (Current Month) Logic
             if (y === curY && m === curM) {
                 if (isInc) ovInc += amount;
                 else {
@@ -172,7 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // 3. Detailed Report (Filtered) Logic
             const yearMatch = (yF === 'all') || (y === yF);
             const monthMatch = (mF === 'all') || (mF === 'current' && m === curM && y === curY) || (m === mF);
             const catMatch = (cF === 'all') || (ex.category === cF);
@@ -191,13 +202,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const stocksValue = state.stocks.reduce((acc, s) => acc + ((s.price || s.purchasePrice) * s.shares), 0);
         const finalNetWorth = totalBalance + stocksValue;
 
-        // --- Update UI elements ---
-        
-        // Net Worth Hero Card
+        // UI Updates
         const nwEl = document.getElementById('total-net-worth');
         if (nwEl) nwEl.textContent = `$${finalNetWorth.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
 
-        // Net Income (Month) Card
         const netOv = document.getElementById('net-income-value');
         if (netOv) {
             const net = ovInc - ovExp;
@@ -205,7 +213,36 @@ document.addEventListener('DOMContentLoaded', () => {
             netOv.style.color = net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
         }
 
-        // Spending Chart (Overview)
+        // Stats Panel (Detailed)
+        const setVal = (id, val) => { if (document.getElementById(id)) document.getElementById(id).textContent = '$' + val.toLocaleString(); };
+        setVal('stats-total-exp', detExp);
+        setVal('stats-total-inc', detInc);
+        
+        const netDet = document.getElementById('stats-net-income');
+        if (netDet) {
+            const net = detInc - detExp;
+            netDet.textContent = (net >= 0 ? '+' : '-') + '$' + Math.abs(net).toLocaleString();
+            netDet.style.color = net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
+        }
+
+        // Savings Rate & Assessment
+        const srEl = document.getElementById('stats-savings-rate');
+        if (srEl) {
+            const rate = detInc > 0 ? ((detInc - detExp) / detInc) * 100 : 0;
+            srEl.textContent = Math.max(0, rate).toFixed(1) + '%';
+            
+            const assessEl = document.getElementById('stats-assessment');
+            if (assessEl) {
+                let note = "Maintain a steady savings rate.";
+                if (rate > 50) note = "Outstanding! You are on a fast track to financial independence.";
+                else if (rate > 20) note = "Healthy savings. You are building solid wealth buffers.";
+                else if (rate > 0) note = "Room for improvement. Try to optimize discretionary spending.";
+                else note = "Warning: Expenses exceed income. Review your budget immediately.";
+                assessEl.textContent = note;
+            }
+        }
+
+        // Overview Spending Chart
         if (spendingChart) {
             spendingChart.data.labels = Object.keys(ovExpData);
             spendingChart.data.datasets[0].data = Object.values(ovExpData);
@@ -214,23 +251,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (label) label.textContent = '$' + ovExp.toLocaleString();
         }
 
-        // Stats Panel (Detailed)
-        const setVal = (id, val) => { if (document.getElementById(id)) document.getElementById(id).textContent = '$' + val.toLocaleString(); };
-        setVal('stats-total-exp', detExp);
-        setVal('stats-total-inc', detInc);
-        const netDet = document.getElementById('stats-net-income');
-        if (netDet) {
-            const net = detInc - detExp;
-            netDet.textContent = (net >= 0 ? '+' : '-') + '$' + Math.abs(net).toLocaleString();
-            netDet.style.color = net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
-        }
-
         if (detailedChart) {
             detailedChart.data.labels = Object.keys(detExpData);
             detailedChart.data.datasets[0].data = Object.values(detExpData);
             detailedChart.update();
         }
 
+        updateCategoryDropdown();
+        
         // Transaction Tables
         const fullBody = document.getElementById('full-transaction-list');
         if (fullBody) {

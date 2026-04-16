@@ -213,13 +213,7 @@
                                 <label>Category</label>
                                 <select id="filter-category">
                                     <option value="all">All Categories</option>
-                                    <option value="Housing">Housing</option>
-                                    <option value="Food & Dining">Food & Dining</option>
-                                    <option value="Shopping">Shopping</option>
-                                    <option value="Transport">Transport</option>
-                                    <option value="Entertainment">Entertainment</option>
-                                    <option value="Utilities">Utilities</option>
-                                    <option value="Others">Others</option>
+                                    <!-- Populated dynamically by JS -->
                                 </select>
                             </div>
                         </div>
@@ -243,11 +237,20 @@
                                 <span class="label">Net Savings</span>
                                 <span class="value" id="stats-net-income">$0</span>
                             </div>
+                            <div class="stat-row">
+                                <span class="label">Savings Rate</span>
+                                <span class="value" id="stats-savings-rate">0%</span>
+                            </div>
+                        </div>
+
+                        <div class="card glass health-card">
+                            <h3>Financial Health</h3>
+                            <div id="stats-assessment" class="assessment-box">Analyzing your data...</div>
                         </div>
 
                         <div class="card glass chart-card-spending">
                             <h3>Expenditure by Category</h3>
-                            <div class="chart-container" style="height: 280px; margin-top: 1rem;">
+                            <div class="chart-container" style="height: 220px; margin-top: 1rem;">
                                 <canvas id="detailedSpendingChart"></canvas>
                             </div>
                         </div>
