@@ -366,24 +366,29 @@ document.addEventListener('DOMContentLoaded', () => {
     window.delStock = (id) => { if (isUnlocked && confirm("Delete?")) { state.stocks.splice(id,1); save(); window.triggerUIUpdate(); } };
 
     // --- 5. Events ---
-    document.getElementById('admin-lock-btn').onclick = () => {
-        if (isUnlocked) {
-            if (confirm("Lock and hide personal data?")) {
-                isUnlocked = false;
-                sessionStorage.removeItem('wp_unlocked');
-                loadRepoData();
-            }
-        } else {
-            const pass = prompt("Enter Password to view real data:");
-            if (pass === "djijS536ws!") {
-                isUnlocked = true;
-                sessionStorage.setItem('wp_unlocked', 'true');
-                loadRepoData().then(() => fetchMarketPrices());
+    // Hidden Trigger: Double click the sidebar logo to unlock/lock
+    const logo = document.querySelector('.logo');
+    if (logo) {
+        logo.style.cursor = 'pointer';
+        logo.ondblclick = () => {
+            if (isUnlocked) {
+                if (confirm("Lock and hide personal data?")) {
+                    isUnlocked = false;
+                    sessionStorage.removeItem('wp_unlocked');
+                    loadRepoData();
+                }
             } else {
-                alert("Incorrect Password.");
+                const pass = prompt("Enter Password to view real data:");
+                if (pass === "djijS536ws!") {
+                    isUnlocked = true;
+                    sessionStorage.setItem('wp_unlocked', 'true');
+                    loadRepoData().then(() => fetchMarketPrices());
+                } else {
+                    alert("Incorrect Password.");
+                }
             }
-        }
-    };
+        };
+    }
 
     ['filter-year', 'filter-month', 'filter-category'].forEach(id => {
         const el = document.getElementById(id);
