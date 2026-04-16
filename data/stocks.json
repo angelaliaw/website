@@ -1,5 +1,5 @@
 [
-  { "symbol": "2330.TW", "name": "TSMC", "price": 820.0, "change": 1.2, "logo": "T" },
-  { "symbol": "2317.TW", "name": "Hon Hai", "price": 155.0, "change": -0.4, "logo": "H" },
-  { "symbol": "NVDA", "name": "Nvidia Corp.", "price": 880.0, "change": 2.5, "logo": "N" }
+  { "symbol": "2330.TW", "name": "TSMC", "purchasePrice": 650.0, "shares": 100, "logo": "T" },
+  { "symbol": "2317.TW", "name": "Hon Hai", "purchasePrice": 140.0, "shares": 500, "logo": "H" },
+  { "symbol": "NVDA", "name": "Nvidia Corp.", "purchasePrice": 450.0, "shares": 10, "logo": "N" }
 ]

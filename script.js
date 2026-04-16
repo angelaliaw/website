@@ -152,39 +152,46 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 4. Logic ---
+    // --- 4. Logic ---
     window.triggerUIUpdate = () => {
         const yF = document.getElementById('filter-year')?.value || 'all';
         const mF = document.getElementById('filter-month')?.value || 'all';
         const cF = document.getElementById('filter-category')?.value || 'all';
+        
         const now = new Date();
         const curM = (now.getMonth() + 1).toString().padStart(2, '0');
         const curY = now.getFullYear().toString();
 
-        // Totals mapping
+        let totalBalance = 0; // Cumulative across all time
         let detExp = 0, detInc = 0, detExpData = {}, filtered = [];
         let ovExp = 0, ovInc = 0, ovExpData = {};
 
         state.expenses.forEach(ex => {
             const { y, m } = parseDateObj(ex.date);
             const amount = parseFloat(ex.amount) || 0;
+            const isInc = (ex.type === 'INC');
 
-            // Overview (Home) filter: Current Month only
+            // 1. Cumulative Balance Logic (Net Worth)
+            if (isInc) totalBalance += amount;
+            else totalBalance -= amount;
+
+            // 2. Overview (Current Month) Logic
             if (y === curY && m === curM) {
-                if (ex.type === 'INC') ovInc += amount;
+                if (isInc) ovInc += amount;
                 else {
                     ovExp += amount;
                     ovExpData[ex.category] = (ovExpData[ex.category] || 0) + amount;
                 }
             }
 
-            // Detailed Report filter
+            // 3. Detailed Report (Filtered) Logic
             const yearMatch = (yF === 'all') || (y === yF);
             const monthMatch = (mF === 'all') || (mF === 'current' && m === curM && y === curY) || (m === mF);
             const catMatch = (cF === 'all') || (ex.category === cF);
 
             if (yearMatch && monthMatch && catMatch) {
                 filtered.push(ex);
-                if (ex.type === 'INC') detInc += amount;
+                if (isInc) detInc += amount;
                 else {
                     detExp += amount;
                     detExpData[ex.category] = (detExpData[ex.category] || 0) + amount;
@@ -192,13 +199,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Update Overview UI
+        // Add stocks to total net worth
+        const stocksValue = state.stocks.reduce((acc, s) => acc + ((s.price || s.purchasePrice) * s.shares), 0);
+        const finalNetWorth = totalBalance + stocksValue;
+
+        // --- Update UI elements ---
+        
+        // Net Worth Hero Card
+        const nwEl = document.getElementById('total-net-worth');
+        if (nwEl) nwEl.textContent = `$${finalNetWorth.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+
+        // Net Income (Month) Card
         const netOv = document.getElementById('net-income-value');
         if (netOv) {
             const net = ovInc - ovExp;
-            netOv.textContent = (net >= 0 ? '+' : '') + '$' + net.toLocaleString();
+            netOv.textContent = (net >= 0 ? '+' : '-') + '$' + Math.abs(net).toLocaleString();
             netOv.style.color = net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
         }
+
+        // Spending Chart (Overview)
         if (spendingChart) {
             spendingChart.data.labels = Object.keys(ovExpData);
             spendingChart.data.datasets[0].data = Object.values(ovExpData);
@@ -207,14 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (label) label.textContent = '$' + ovExp.toLocaleString();
         }
 
-        // Update Detailed UI
+        // Stats Panel (Detailed)
         const setVal = (id, val) => { if (document.getElementById(id)) document.getElementById(id).textContent = '$' + val.toLocaleString(); };
         setVal('stats-total-exp', detExp);
         setVal('stats-total-inc', detInc);
         const netDet = document.getElementById('stats-net-income');
         if (netDet) {
             const net = detInc - detExp;
-            netDet.textContent = (net >= 0 ? '+' : '') + '$' + net.toLocaleString();
+            netDet.textContent = (net >= 0 ? '+' : '-') + '$' + Math.abs(net).toLocaleString();
             netDet.style.color = net >= 0 ? 'var(--accent-emerald)' : 'var(--accent-ruby)';
         }
 
@@ -224,13 +243,14 @@ document.addEventListener('DOMContentLoaded', () => {
             detailedChart.update();
         }
 
-        // Tables
+        // Transaction Tables
         const fullBody = document.getElementById('full-transaction-list');
         if (fullBody) {
-            fullBody.innerHTML = filtered.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--text-secondary);">No data found for this selection.</td></tr>` : '';
-            filtered.sort((a,b) => b.date.localeCompare(a.date)).forEach(ex => {
+            fullBody.innerHTML = filtered.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--text-secondary);">No records found.</td></tr>` : '';
+            filtered.sort((a,b) => String(b.date).localeCompare(String(a.date))).forEach(ex => {
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td class="${ex.type === 'EXP' ? 'negative' : 'positive'}">${ex.type === 'EXP' ? '-' : '+'}$${parseFloat(ex.amount).toLocaleString()}</td>
+                const isInc = ex.type === 'INC';
+                row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td class="${isInc ? 'positive' : 'negative'}">${isInc ? '+' : '-'}$${parseFloat(ex.amount).toLocaleString()}</td>
                     <td>${ex.account}</td><td>${ex.memo}</td>
                     <td class="admin-only"><button class="remove-btn" onclick="window.delTask(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
                 fullBody.appendChild(row);
@@ -240,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const miniBody = document.getElementById('transaction-list');
         if (miniBody) {
             miniBody.innerHTML = '';
-            state.expenses.filter(e => e.type === 'EXP').sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5).forEach(ex => {
+            state.expenses.filter(e => e.type === 'EXP').sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0, 5).forEach(ex => {
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${ex.date}</td><td>${ex.category}</td><td>$${parseFloat(ex.amount).toLocaleString()}</td><td class="admin-only"><button class="remove-btn" onclick="window.delTask(${state.expenses.indexOf(ex)})"><i data-lucide="x"></i></button></td>`;
                 miniBody.appendChild(row);
@@ -258,9 +278,88 @@ document.addEventListener('DOMContentLoaded', () => {
         list.innerHTML = '';
         state.stocks.forEach((s, i) => {
             const row = document.createElement('tr');
-            row.innerHTML = `<td><strong>${s.symbol}</strong><br><small>${s.name}</small></td><td>$${s.price.toFixed(2)}</td><td class="${s.change>=0?'positive':'negative'}">${s.change>=0?'+':''}${s.change}%</td><td class="admin-only"><button class="remove-btn" onclick="window.delStock(${i})"><i data-lucide="trash-2"></i></button></td>`;
+            const currentPrice = s.price || s.purchasePrice; // Fallback to purchase price if fetch failed
+            const currentVal = currentPrice * s.shares;
+            const costBasis = s.purchasePrice * s.shares;
+            const gain = currentVal - costBasis;
+            const gainPct = (gain / costBasis) * 100;
+            const trendClass = gain >= 0 ? 'positive' : 'negative';
+
+            row.innerHTML = `
+                <td>
+                    <div class="symbol-cell">
+                        <div class="symbol-icon">${s.logo || s.symbol[0]}</div>
+                        <div class="symbol-info">
+                            <strong>${s.symbol}</strong><br>
+                            <small style="color: #64748b">${s.name} • ${s.shares} shares</small>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div style="font-size: 0.9rem">$${currentPrice.toFixed(2)}</div>
+                    <div style="font-size: 0.7rem; color: var(--text-secondary)">Cost: $${s.purchasePrice.toFixed(2)}</div>
+                </td>
+                <td>
+                    <div class="trend ${trendClass}">${gain >= 0 ? '+' : ''}$${gain.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                    <div style="font-size: 0.7rem; color: var(--text-secondary)">${gain >= 0 ? '+' : ''}${gainPct.toFixed(2)}%</div>
+                </td>
+                <td style="font-weight: 600">$${currentVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                <td class="admin-only"><button class="remove-btn" onclick="window.delStock(${i})"><i data-lucide="trash-2"></i></button></td>
+            `;
             list.appendChild(row);
         });
+    };
+
+    // --- New: Fetch Live Prices from Internet ---
+    const fetchMarketPrices = async () => {
+        const btn = document.getElementById('refresh-stocks');
+        if (btn) btn.classList.add('loading');
+        
+        try {
+            // Using a free, keyless proxy for Yahoo Finance data (standard practice for static sites)
+            // Note: In a production app, you'd use a dedicated service like Finnhub or Polygon.io
+            const symbols = state.stocks.map(s => s.symbol).join(',');
+            // Yahoo Finance Query V7
+            const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
+            // We use a CORS proxy to bypass browser restrictions
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+            
+            const response = await fetch(proxyUrl);
+            const rawData = await response.json();
+            const data = JSON.parse(rawData.contents);
+            
+            if (data.quoteResponse && data.quoteResponse.result) {
+                const results = data.quoteResponse.result;
+                state.stocks = state.stocks.map(s => {
+                    const match = results.find(r => r.symbol === s.symbol);
+                    if (match) {
+                        return {
+                            ...s,
+                            price: match.regularMarketPrice,
+                            change: match.regularMarketChangePercent
+                        };
+                    }
+                    return s;
+                });
+                renderStocks();
+                document.getElementById('last-updated').innerText = `Last update: ${new Date().toLocaleTimeString()}`;
+            }
+        } catch (e) {
+            console.error("Live fetch failed:", e);
+            // Fallback to simulated updates if proxy/API fails
+            simulateMarketLive();
+        } finally {
+            if (btn) btn.classList.remove('loading');
+        }
+    };
+
+    const simulateMarketLive = () => {
+        console.log("Simulating market updates...");
+        state.stocks = state.stocks.map(s => ({
+            ...s,
+            price: s.price ? s.price * (1 + (Math.random() * 0.01 - 0.005)) : s.purchasePrice * (1 + (Math.random() * 0.1))
+        }));
+        renderStocks();
     };
 
     const updateAdminUI = () => {
@@ -315,15 +414,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 6. Start ---
-    loadRepoData();
+    loadRepoData().then(() => {
+        fetchMarketPrices();
+        setInterval(fetchMarketPrices, 300000); // 5 min auto-refresh
+    });
+    
     initCharts();
     updateYearDropdown();
     window.triggerUIUpdate();
     document.querySelectorAll('.nav-links li').forEach(li => li.onclick = () => window.switchTab(li.querySelector('span').innerText));
-    document.getElementById('refresh-stocks').onclick = async () => {
-        const b = document.getElementById('refresh-stocks'); b.classList.add('loading');
-        await new Promise(r => setTimeout(r, 1000));
-        state.stocks = state.stocks.map(s => ({ ...s, price: s.price*(1+(Math.random()*0.02-0.01)), change: (Math.random()*2-1).toFixed(2) }));
-        save(); window.triggerUIUpdate(); b.classList.remove('loading');
+    
+    document.getElementById('refresh-stocks').onclick = () => {
+        fetchMarketPrices();
     };
 });
