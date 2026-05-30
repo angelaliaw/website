@@ -67,19 +67,29 @@
         <div class="content-area">
             <section class="table-card">
                 <div class="table-header">
-                    <h2>Personal Portfolio</h2>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <h2>Portfolio Intelligence</h2>
+                        <select id="category-filter" class="btn-secondary" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white;">
+                            <option value="all">All Categories</option>
+                            <option value="ETF">ETF</option>
+                            <option value="科技">Technology</option>
+                            <option value="金融">Finance</option>
+                            <option value="傳產">Traditional</option>
+                        </select>
+                    </div>
                     <div id="table-stats" style="font-size: 0.9rem; color: var(--text-dim);"></div>
                 </div>
                 <div style="overflow-x: auto;">
-                    <table>
+                    <table class="advanced-table">
                         <thead>
                             <tr>
                                 <th>Asset</th>
-                                <th>Units</th>
-                                <th>Avg / Live</th>
+                                <th>Open/Close</th>
+                                <th>High/Low</th>
+                                <th>Value (M)</th>
                                 <th>Volume</th>
-                                <th>Daily Range</th>
                                 <th>PNL</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="stock-tbody">

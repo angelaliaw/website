@@ -11,6 +11,7 @@ let state = {
     stocks: [],
     selectedSymbols: JSON.parse(localStorage.getItem('selectedSymbols')) || CONFIG.DEFAULT_SYMBOL_SHOW,
     apiKey: localStorage.getItem('geminiApiKey') || '',
+    categoryFilter: 'all',
     marketData: {}
 };
 
@@ -39,6 +40,7 @@ const elements = {
     settingsModal: document.getElementById('settings-modal'),
     settingsList: document.getElementById('settings-list'),
     apiKeyInput: document.getElementById('api-key-input'),
+    categoryFilter: document.getElementById('category-filter'),
     nextBtn: document.getElementById('next-btn'),
     aiResponse: document.getElementById('ai-response'),
     aiText: document.getElementById('ai-text'),
@@ -54,11 +56,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load API key to input
     if (state.apiKey) elements.apiKeyInput.value = state.apiKey;
     
-    // Check local storage for auth (session based)
-    const authed = sessionStorage.getItem('isAuthed');
-    if (authed === 'true') {
-        showDashboard();
-    }
+    // Handle category filter
+    elements.categoryFilter.addEventListener('change', (e) => {
+        state.categoryFilter = e.target.value;
+        renderStocks();
+    });
 });
 
 // Login Logic
@@ -134,49 +136,46 @@ async function fetchMarketData() {
 
     state.selectedSymbols.forEach(code => {
         if (!symbols[code]) {
-            symbols[code] = code.length <= 5 && !isNaN(code) ? `${code}.TW` : code;
+            // Auto-fix for Taiwan stocks: 2330 -> 2330.TW, 50 -> 0050.TW
+            let cleanCode = code.toString().trim();
+            if (!isNaN(cleanCode) && cleanCode.length <= 4) {
+                cleanCode = cleanCode.padStart(4, '0');
+            }
+            symbols[code] = cleanCode.length <= 6 ? `${cleanCode}.TW` : cleanCode;
         }
     });
 
     const results = {};
     const fetchPromises = Object.entries(symbols).map(async ([key, symbol]) => {
         try {
-            // Using a more reliable CORS proxy
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=2d`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-            
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error('Proxy down');
-            
-            const json = await response.json();
-            if (!json.chart || !json.chart.result) throw new Error('Invalid data');
-
             const meta = json.chart.result[0].meta;
             const quote = json.chart.result[0].indicators.quote[0];
             const price = meta.regularMarketPrice;
-            const prevClose = meta.previousClose;
+            const prevClose = meta.previousClose || meta.chartPreviousClose || price;
+            const open = quote.open ? quote.open[quote.open.length - 1] : price;
+            const high = quote.high ? quote.high[quote.high.length - 1] : price;
+            const low = quote.low ? quote.low[quote.low.length - 1] : price;
+            const volume = quote.volume ? quote.volume[quote.volume.length - 1] : 0;
+            const value = volume * price;
+
             const change = price - prevClose;
-            const changePercent = (change / prevClose) * 100;
-            
-            // Get latest volume/high/low safely
-            const vArr = quote.volume || [];
-            const hArr = quote.high || [];
-            const lArr = quote.low || [];
-            
-            const volume = vArr[vArr.length - 1] || 0;
-            const high = hArr[hArr.length - 1] || price;
-            const low = lArr[lArr.length - 1] || price;
+            const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0;
 
             results[key] = {
                 val: price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 chg: `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent.toFixed(2)}%)`,
                 up: change >= 0,
-                volume: volume > 0 ? (volume / 1000000).toFixed(2) + 'M' : '--',
+                open: open,
+                high: high,
+                low: low,
+                prevClose: prevClose,
+                volume: volume > 0 ? (volume / 1000).toFixed(0) + 'K' : '--',
+                value: (value / 1000000).toFixed(1) + 'M',
                 range: `${low.toFixed(2)} - ${high.toFixed(2)}`
             };
         } catch (err) {
-            console.warn(`Fetch failed for ${symbol}, using placeholder.`, err);
-            results[key] = { val: 'Offline', chg: '--', up: true, volume: '--', range: '--' };
+            console.warn(`Fetch failed for ${symbol}:`, err);
+            results[key] = { val: 'Offline', chg: '0.00 (0.00%)', up: true, volume: '--', range: '--', value: '--' };
         }
     });
 
@@ -216,34 +215,40 @@ function updateMarketUI() {
 function renderStocks() {
     elements.stockTbody.innerHTML = '';
     
-    // Filter stocks based on selection
-    const filtered = state.stocks.filter(s => state.selectedSymbols.includes(s.code));
+    // Filter stocks based on selection & category
+    const filtered = state.stocks.filter(s => {
+        const matchesSelection = state.selectedSymbols.includes(s.code);
+        const matchesCategory = state.categoryFilter === 'all' || s.category_lvl1 === state.categoryFilter || s.category_lvl2 === state.categoryFilter;
+        return matchesSelection && matchesCategory;
+    });
     
     filtered.forEach(stock => {
         const row = document.createElement('tr');
-        
-        // Attempt to find real price from market data
-        // For TW stocks, CSV says '2330', Yahoo wants '2330.TW' or we already fetched it as 'TSM' etc.
-        // We'll update fetchMarketData to include selected symbols.
-        
-        let liveVal = state.marketData[stock.code];
-        let currentPrice = liveVal && liveVal.val !== 'Offline' ? parseFloat(liveVal.val.replace(/,/g, '')) : null;
-        
-        const pnl = currentPrice ? ((currentPrice - parseFloat(stock.price)) / parseFloat(stock.price)) * 100 : null;
+        const live = state.marketData[stock.code] || { val: 'Loading', chg: '--', volume: '--', range: '--', value: '--' };
+        const priceNum = live.val !== 'Loading' && live.val !== 'Offline' ? parseFloat(live.val.replace(/,/g, '')) : null;
+        const pnl = priceNum ? ((priceNum - parseFloat(stock.price)) / parseFloat(stock.price)) * 100 : null;
         
         row.innerHTML = `
             <td>
                 <div style="font-weight: 600;">${stock.stock_name}</div>
                 <div style="font-size: 0.75rem; color: var(--text-dim);">${stock.code}</div>
             </td>
-            <td>${stock.unit}</td>
             <td>
-                <div style="font-size: 0.85rem; color: var(--text-dim);">$${parseFloat(stock.price).toLocaleString()}</div>
-                <div style="font-weight: 700;">${currentPrice ? '$' + currentPrice.toLocaleString() : '...'}</div>
+                <div style="font-size: 0.85rem; color: var(--text-dim);">${live.open ? 'O: ' + live.open.toFixed(2) : '--'}</div>
+                <div style="font-weight: 700; color: ${live.up ? 'var(--success)' : 'var(--danger)'}">${live.val}</div>
             </td>
-            <td style="font-size: 0.9rem;">${liveVal ? liveVal.volume : '--'}</td>
-            <td style="font-size: 0.8rem; color: var(--text-dim);">${liveVal ? liveVal.range : '--'}</td>
-            <td class="${pnl !== null ? (pnl >= 0 ? 'up' : 'down') : ''}">${pnl !== null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%' : '--'}</td>
+            <td style="font-size: 0.85rem; line-height: 1.2;">
+                <div>H: ${live.high ? live.high.toFixed(2) : '--'}</div>
+                <div style="color: var(--text-dim);">L: ${live.low ? live.low.toFixed(2) : '--'}</div>
+            </td>
+            <td>${live.value || '--'}</td>
+            <td>${live.volume || '--'}</td>
+            <td class="${pnl !== null ? (pnl >= 0 ? 'up' : 'down') : ''}">
+                ${pnl !== null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%' : '--'}
+            </td>
+            <td>
+                <span style="font-size: 0.75rem; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px;">${stock.category_lvl2}</span>
+            </td>
         `;
         elements.stockTbody.appendChild(row);
     });
@@ -324,8 +329,8 @@ elements.nextBtn.onclick = async () => {
     const portfolioData = state.stocks
         .filter(s => state.selectedSymbols.includes(s.code))
         .map(s => {
-            const live = state.marketData[s.code] || {};
-            return `${s.stock_name}: Cost $${s.price}, Current $${live.val || 'N/A'}, Vol ${live.volume || 'N/A'}`;
+            const l = state.marketData[s.code] || {};
+            return `名稱: ${s.stock_name}, 代碼: ${s.code}, 成本: ${s.price}, 現價: ${l.val}, 開盤: ${l.open}, 高: ${l.high}, 低: ${l.low}, 量: ${l.volume}, 額: ${l.value}, 漲跌: ${l.chg}`;
         })
         .join('\n');
         
@@ -333,10 +338,12 @@ elements.nextBtn.onclick = async () => {
         .filter(([k]) => ['NDX', 'S&P500', 'TAIEX', 'VIX'].includes(k))
         .map(([k, v]) => `${k}: ${v.val} (${v.chg})`)
         .join(', ');
+        
+    const macro = `NVDA: ${state.marketData['NVDA']?.val}, TSMC: ${state.marketData['TSM']?.val}, USDTWD: ${state.marketData['USDTWD']?.val}`;
 
     if (state.apiKey) {
         try {
-            const finalPrompt = AI_PROMPTS.formatPrompt(marketContext, portfolioData);
+            const finalPrompt = AI_PROMPTS.formatPrompt(marketContext, portfolioData, macro);
             
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${state.apiKey}`, {
                 method: 'POST',
@@ -348,12 +355,13 @@ elements.nextBtn.onclick = async () => {
             
             const result = await response.json();
             const aiText = result.candidates[0].content.parts[0].text;
+            elements.aiResponse.style.display = 'block';
             elements.aiText.innerHTML = aiText.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         } catch (err) {
-            elements.aiText.innerHTML = `<span style="color: var(--danger)">Error calling Gemini Agent: ${err.message}. Check your API key.</span>`;
+            elements.aiText.innerHTML = `<span style="color: var(--danger)">分析失敗: ${err.message}. 請確認 API Key.</span>`;
         }
     } else {
-        // Fallback to mock for demo (but with agent branding)
+        // Fallback...
         setTimeout(() => {
             elements.aiText.innerHTML = `
                 <div style="color: var(--primary); font-weight: 700; margin-bottom: 0.5rem;">[QUANTUM STRATEGIST AGENT]</div>
