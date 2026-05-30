@@ -142,10 +142,18 @@
             <h3>Configuration</h3>
             <p style="color: var(--text-dim); margin-bottom: 1.5rem;">Configure your intelligence settings.</p>
             
-            <div style="margin-bottom: 2rem;">
-                <label style="display: block; font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-dim);">Gemini API Key (stored locally)</label>
-                <input type="password" id="api-key-input" placeholder="Enter Gemini API Key..." 
-                    style="width: 100%; padding: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 12px; color: white;">
+            <div style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem;">
+                <label style="display: block; font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-dim);">Gemini API Key</label>
+                <input type="password" id="api-key-input" placeholder="Gemini Key..." class="config-input">
+                
+                <h4 style="margin: 1.5rem 0 0.5rem 0; font-size: 0.9rem; color: var(--primary);">MongoDB History Sync</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <input type="text" id="mongo-cluster" placeholder="Cluster Name" class="config-input">
+                    <input type="text" id="mongo-db" placeholder="Database Name" class="config-input">
+                    <input type="text" id="mongo-col" placeholder="Collection Name" class="config-input">
+                    <input type="password" id="mongo-key" placeholder="Atlas Data API Key" class="config-input">
+                </div>
+                <input type="text" id="mongo-endpoint" placeholder="Data API Endpoint URL" class="config-input" style="margin-top: 0.5rem;">
             </div>
 
             <p style="color: var(--text-dim); margin-bottom: 0.5rem; font-size: 0.85rem;">Select assets to prioritize:</p>

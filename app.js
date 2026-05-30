@@ -11,6 +11,13 @@ let state = {
     stocks: [],
     selectedSymbols: JSON.parse(localStorage.getItem('selectedSymbols')) || CONFIG.DEFAULT_SYMBOL_SHOW,
     apiKey: localStorage.getItem('geminiApiKey') || '',
+    mongo: {
+        cluster: localStorage.getItem('mongoCluster') || '',
+        db: localStorage.getItem('mongoDB') || '',
+        col: localStorage.getItem('mongoCol') || '',
+        key: localStorage.getItem('mongoKey') || '',
+        endpoint: localStorage.getItem('mongoEndpoint') || '',
+    },
     categoryFilter: 'all',
     marketData: {}
 };
@@ -40,6 +47,11 @@ const elements = {
     settingsModal: document.getElementById('settings-modal'),
     settingsList: document.getElementById('settings-list'),
     apiKeyInput: document.getElementById('api-key-input'),
+    mongoCluster: document.getElementById('mongo-cluster'),
+    mongoDB: document.getElementById('mongo-db'),
+    mongoCol: document.getElementById('mongo-col'),
+    mongoKey: document.getElementById('mongo-key'),
+    mongoEndpoint: document.getElementById('mongo-endpoint'),
     categoryFilter: document.getElementById('category-filter'),
     nextBtn: document.getElementById('next-btn'),
     aiResponse: document.getElementById('ai-response'),
@@ -53,14 +65,25 @@ document.addEventListener('DOMContentLoaded', () => {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
     });
     
-    // Load API key to input
+    // Load keys to inputs
     if (state.apiKey) elements.apiKeyInput.value = state.apiKey;
+    if (state.mongo.cluster) elements.mongoCluster.value = state.mongo.cluster;
+    if (state.mongo.db) elements.mongoDB.value = state.mongo.db;
+    if (state.mongo.col) elements.mongoCol.value = state.mongo.col;
+    if (state.mongo.key) elements.mongoKey.value = state.mongo.key;
+    if (state.mongo.endpoint) elements.mongoEndpoint.value = state.mongo.endpoint;
     
     // Handle category filter
     elements.categoryFilter.addEventListener('change', (e) => {
         state.categoryFilter = e.target.value;
         renderStocks();
     });
+
+    // Check local storage for auth (session based)
+    const authed = sessionStorage.getItem('isAuthed');
+    if (authed === 'true') {
+        showDashboard();
+    }
 });
 
 // Login Logic
@@ -83,8 +106,6 @@ function showDashboard() {
 async function initApp() {
     await loadCSVData();
     await fetchMarketData();
-    renderStocks();
-    updateAILeaders();
 }
 
 // CSV Parsing
@@ -93,6 +114,8 @@ async function loadCSVData() {
         const response = await fetch(CONFIG.CSV_PATH);
         const csvText = await response.text();
         const rows = csvText.split('\n').filter(row => row.trim() !== '');
+        if (rows.length === 0) return;
+
         const headers = rows[0].split(',');
         
         const data = rows.slice(1).map(row => {
@@ -104,28 +127,20 @@ async function loadCSVData() {
             return obj;
         });
 
-        // Get latest record for each code
         const latestMap = new Map();
         data.forEach(item => {
-            // Assuimg created_at or just order matters. 
-            // In the provided CSV, they seem to be all from same date.
-            // We'll keep the last one found for each code.
             latestMap.set(item.code, item);
         });
         
         state.stocks = Array.from(latestMap.values());
-        
-        // Dynamic categories for filter
         populateCategoryFilter();
-        
-        // Populate settings list with unique stocks from CSV
         renderSettings();
     } catch (err) {
         console.error('Error loading CSV:', err);
     }
 }
 
-// Market Data Fetching (Resilient Real Data via Proxy)
+// Market Data Fetching
 async function fetchMarketData() {
     const symbols = {
         'NDX': '^NDX',
@@ -139,7 +154,6 @@ async function fetchMarketData() {
 
     state.selectedSymbols.forEach(code => {
         if (!symbols[code]) {
-            // Auto-fix for Taiwan stocks: 2330 -> 2330.TW, 50 -> 0050.TW
             let cleanCode = code.toString().trim();
             if (!isNaN(cleanCode) && cleanCode.length <= 4) {
                 cleanCode = cleanCode.padStart(4, '0');
@@ -151,17 +165,24 @@ async function fetchMarketData() {
     const results = {};
     const fetchPromises = Object.entries(symbols).map(async ([key, symbol]) => {
         try {
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=2d`;
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+            
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error('Proxy down');
+            
+            const json = await response.json();
+            if (!json.chart || !json.chart.result) throw new Error('Invalid data');
+
             const meta = json.chart.result[0].meta;
             const quote = json.chart.result[0].indicators.quote[0];
             const price = meta.regularMarketPrice || (quote.close ? quote.close[quote.close.length - 1] : 0);
             
-            // Advanced fallback for Previous Close
             let prevClose = meta.previousClose || meta.chartPreviousClose;
             if (!prevClose && quote.close && quote.close.length > 1) {
-                // If meta is missing it, take the first data point from our 2-day range
                 prevClose = quote.close[0];
             }
-            if (!prevClose) prevClose = price; // Absolute fallback
+            if (!prevClose) prevClose = price;
 
             const open = quote.open ? quote.open[quote.open.length - 1] : price;
             const high = quote.high ? quote.high[quote.high.length - 1] : price;
@@ -180,7 +201,7 @@ async function fetchMarketData() {
                 high: high,
                 low: low,
                 prevClose: prevClose,
-                volume: volume > 0 ? (volume / 1000).toFixed(0) + 'K' : '--',
+                volume: volume > 1000 ? (volume / 1000).toFixed(0) + 'K' : volume,
                 value: (value / 1000000).toFixed(1) + 'M',
                 range: `${low.toFixed(2)} - ${high.toFixed(2)}`
             };
@@ -193,11 +214,10 @@ async function fetchMarketData() {
     await Promise.all(fetchPromises);
     state.marketData = results;
     updateMarketUI();
-    renderStocks(); // Ensure table updates with live data
+    renderStocks();
 }
 
 function updateMarketUI() {
-    // Indices
     const map = {
         'val-ndx': state.marketData['NDX'],
         'val-sp500': state.marketData['S&P500'],
@@ -209,18 +229,21 @@ function updateMarketUI() {
     for (const [id, data] of Object.entries(map)) {
         const valEl = document.getElementById(id);
         const chgEl = document.getElementById('chg-' + id.split('-')[1]);
-        if (valEl && chgEl) {
+        if (valEl && chgEl && data) {
             valEl.textContent = data.val;
             chgEl.textContent = data.chg;
             chgEl.className = 'index-change ' + (data.up ? 'up' : 'down');
         }
     }
 
-    // AI Leaders
-    elements.aiLeaders.nvda.textContent = `$${state.marketData['NVDA'].val}`;
-    elements.aiLeaders.nvda.className = state.marketData['NVDA'].up ? 'up' : 'down';
-    elements.aiLeaders.tsm.textContent = `$${state.marketData['TSM'].val}`;
-    elements.aiLeaders.tsm.className = state.marketData['TSM'].up ? 'up' : 'down';
+    if (state.marketData['NVDA']) {
+        elements.aiLeaders.nvda.textContent = `$${state.marketData['NVDA'].val}`;
+        elements.aiLeaders.nvda.className = state.marketData['NVDA'].up ? 'up' : 'down';
+    }
+    if (state.marketData['TSM']) {
+        elements.aiLeaders.tsm.textContent = `$${state.marketData['TSM'].val}`;
+        elements.aiLeaders.tsm.className = state.marketData['TSM'].up ? 'up' : 'down';
+    }
 }
 
 function populateCategoryFilter() {
@@ -228,21 +251,17 @@ function populateCategoryFilter() {
     const cats2 = [...new Set(state.stocks.map(s => s.category_lvl2))];
     const allCats = [...new Set([...cats1, ...cats2])].filter(c => c && c !== '');
     
-    const filter = document.getElementById('category-filter');
-    filter.innerHTML = '<option value="all">All Assets</option>';
-    
+    elements.categoryFilter.innerHTML = '<option value="all">All Assets</option>';
     allCats.sort().forEach(cat => {
         const opt = document.createElement('option');
         opt.value = cat;
         opt.textContent = cat;
-        filter.appendChild(opt);
+        elements.categoryFilter.appendChild(opt);
     });
 }
 
 function renderStocks() {
     elements.stockTbody.innerHTML = '';
-    
-    // Filter stocks based on selection & category
     const filtered = state.stocks.filter(s => {
         const matchesSelection = state.selectedSymbols.includes(s.code);
         const matchesCategory = state.categoryFilter === 'all' || s.category_lvl1 === state.categoryFilter || s.category_lvl2 === state.categoryFilter;
@@ -261,12 +280,12 @@ function renderStocks() {
                 <div style="font-size: 0.75rem; color: var(--text-dim);">${stock.code}</div>
             </td>
             <td>
-                <div style="font-size: 0.85rem; color: var(--text-dim);">${live.open ? 'O: ' + live.open.toFixed(2) : '--'}</div>
+                <div style="font-size: 0.85rem; color: var(--text-dim);">${live.open && !isNaN(live.open) ? 'O: ' + live.open.toFixed(2) : '--'}</div>
                 <div style="font-weight: 700; color: ${live.up ? 'var(--success)' : 'var(--danger)'}">${live.val}</div>
             </td>
             <td style="font-size: 0.85rem; line-height: 1.2;">
-                <div>H: ${live.high ? live.high.toFixed(2) : '--'}</div>
-                <div style="color: var(--text-dim);">L: ${live.low ? live.low.toFixed(2) : '--'}</div>
+                <div>H: ${live.high && !isNaN(live.high) ? live.high.toFixed(2) : '--'}</div>
+                <div style="color: var(--text-dim);">L: ${live.low && !isNaN(live.low) ? live.low.toFixed(2) : '--'}</div>
             </td>
             <td>${live.value || '--'}</td>
             <td>${live.volume || '--'}</td>
@@ -283,23 +302,15 @@ function renderStocks() {
     document.getElementById('table-stats').textContent = `Showing ${filtered.length} of ${state.stocks.length} assets`;
 }
 
-// Settings Logic
-elements.openSettings.onclick = () => {
-    elements.settingsModal.style.display = 'flex';
-};
-
-elements.closeSettings.onclick = () => {
-    elements.settingsModal.style.display = 'none';
-};
+elements.openSettings.onclick = () => elements.settingsModal.style.display = 'flex';
+elements.closeSettings.onclick = () => elements.settingsModal.style.display = 'none';
 
 function renderSettings() {
     elements.settingsList.innerHTML = '';
-    
-    // Sort stocks by name
     const sorted = [...state.stocks].sort((a, b) => a.stock_name.localeCompare(b.stock_name));
-    
     sorted.forEach(stock => {
         const div = document.createElement('div');
+        div.className = 'settings-item';
         div.style.padding = '0.75rem';
         div.style.marginBottom = '0.5rem';
         div.style.background = 'rgba(255,255,255,0.03)';
@@ -310,7 +321,6 @@ function renderSettings() {
         div.style.cursor = 'pointer';
         
         const checked = state.selectedSymbols.includes(stock.code) ? 'checked' : '';
-        
         div.innerHTML = `
             <input type="checkbox" id="check-${stock.code}" ${checked} style="width: 18px; height: 18px;">
             <label for="check-${stock.code}" style="flex-grow: 1; cursor: pointer;">
@@ -318,83 +328,98 @@ function renderSettings() {
                 <span style="display: block; font-size: 0.7rem; color: var(--text-dim);">${stock.category_lvl1} - ${stock.category_lvl2}</span>
             </label>
         `;
-        
         div.onclick = (e) => {
             if (e.target.tagName !== 'INPUT') {
                 const cb = div.querySelector('input');
                 cb.checked = !cb.checked;
             }
         };
-        
         elements.settingsList.appendChild(div);
     });
 }
 
 elements.saveSettings.onclick = () => {
     const checkboxes = elements.settingsList.querySelectorAll('input[type="checkbox"]');
-    const selected = [];
-    checkboxes.forEach(cb => {
-        if (cb.checked) {
-            selected.push(cb.id.replace('check-', ''));
-        }
-    });
+    const selected = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.id.replace('check-', ''));
     
     state.selectedSymbols = selected;
     state.apiKey = elements.apiKeyInput.value;
+    state.mongo = {
+        cluster: elements.mongoCluster.value,
+        db: elements.mongoDB.value,
+        col: elements.mongoCol.value,
+        key: elements.mongoKey.value,
+        endpoint: elements.mongoEndpoint.value,
+    };
+
     localStorage.setItem('selectedSymbols', JSON.stringify(selected));
     localStorage.setItem('geminiApiKey', state.apiKey);
-    fetchMarketData(); // Re-fetch for potential new symbols
-    renderStocks();
+    localStorage.setItem('mongoCluster', state.mongo.cluster);
+    localStorage.setItem('mongoDB', state.mongo.db);
+    localStorage.setItem('mongoCol', state.mongo.col);
+    localStorage.setItem('mongoKey', state.mongo.key);
+    localStorage.setItem('mongoEndpoint', state.mongo.endpoint);
+
+    fetchMarketData(); 
     elements.settingsModal.style.display = 'none';
 };
 
-// LLM Interaction
 elements.nextBtn.onclick = async () => {
     elements.aiResponse.style.display = 'block';
-    elements.aiText.textContent = 'Contacting intelligence core...';
+    elements.aiText.textContent = 'Contacting AI Agent...';
     
     const portfolioData = state.stocks
         .filter(s => state.selectedSymbols.includes(s.code))
         .map(s => {
             const l = state.marketData[s.code] || {};
-            return `名稱: ${s.stock_name}, 代碼: ${s.code}, 成本: ${s.price}, 現價: ${l.val}, 開盤: ${l.open}, 高: ${l.high}, 低: ${l.low}, 量: ${l.volume}, 額: ${l.value}, 漲跌: ${l.chg}`;
-        })
-        .join('\n');
-        
+            return `名稱: ${s.stock_name}, 代碼: ${s.code}, 現價: ${l.val}, 量: ${l.volume}, 漲跌: ${l.chg}`;
+        }).join('\n');
+    
     const marketContext = Object.entries(state.marketData)
         .filter(([k]) => ['NDX', 'S&P500', 'TAIEX', 'VIX'].includes(k))
-        .map(([k, v]) => `${k}: ${v.val} (${v.chg})`)
-        .join(', ');
-        
-    const macro = `NVDA: ${state.marketData['NVDA']?.val}, TSMC: ${state.marketData['TSM']?.val}, USDTWD: ${state.marketData['USDTWD']?.val}`;
+        .map(([k, v]) => `${k}: ${v.val} (${v.chg})`).join(', ');
+
+    const macroValues = `NVDA: ${state.marketData['NVDA']?.val}, TSMC: ${state.marketData['TSM']?.val}`;
+
+    saveSnapshotToMongo(marketContext, portfolioData);
 
     if (state.apiKey) {
         try {
-            const finalPrompt = AI_PROMPTS.formatPrompt(marketContext, portfolioData, macro);
-            
+            const finalPrompt = AI_PROMPTS.formatPrompt(marketContext, portfolioData, macroValues);
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${state.apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: finalPrompt }] }]
-                })
+                body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }] }] })
             });
-            
             const result = await response.json();
             const aiText = result.candidates[0].content.parts[0].text;
-            elements.aiResponse.style.display = 'block';
             elements.aiText.innerHTML = aiText.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         } catch (err) {
-            elements.aiText.innerHTML = `<span style="color: var(--danger)">分析失敗: ${err.message}. 請確認 API Key.</span>`;
+            elements.aiText.innerHTML = `<span style="color: var(--danger)">分析失敗: ${err.message}</span>`;
         }
     } else {
-        // Fallback...
         setTimeout(() => {
-            elements.aiText.innerHTML = `
-                <div style="color: var(--primary); font-weight: 700; margin-bottom: 0.5rem;">[QUANTUM STRATEGIST AGENT]</div>
-                <strong>Market Sentiment:</strong> Demo insights based on ${marketContext}. Indices show strong support.<br><br>
-                <strong>Agent Recommendation:</strong> Your portfolio setup is optimized for tech growth. Enable your <strong>Gemini API Key</strong> in Settings to activate full agentic reasoning on your live volumes.
-            `;
+            elements.aiText.innerHTML = "<strong>[Demo Mode]</strong> Please enter Gemini API Key in Settings for live analysis.";
         }, 1500);
     }
 };
+
+async function saveSnapshotToMongo(marketContext, portfolioData) {
+    if (!state.mongo.key || !state.mongo.endpoint) return;
+    const payload = {
+        dataSource: state.mongo.cluster,
+        database: state.mongo.db,
+        collection: state.mongo.col,
+        document: { timestamp: new Date().toISOString(), market: marketContext, portfolio: portfolioData }
+    };
+    try {
+        await fetch(`${state.mongo.endpoint}/action/insertOne`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'api-key': state.mongo.key },
+            body: JSON.stringify(payload)
+        });
+        console.log('✅ Saved to MongoDB');
+    } catch (err) {
+        console.error('❌ MongoDB Error:', err);
+    }
+}
