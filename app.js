@@ -120,7 +120,7 @@ async function loadCSVData() {
     }
 }
 
-// Market Data Fetching (Real Data via CORS Proxy)
+// Market Data Fetching (Resilient Real Data via Proxy)
 async function fetchMarketData() {
     const symbols = {
         'NDX': '^NDX',
@@ -132,10 +132,8 @@ async function fetchMarketData() {
         'TSM': 'TSM'
     };
 
-    // Add selected personal stocks to symbols list
     state.selectedSymbols.forEach(code => {
         if (!symbols[code]) {
-            // Heuristic for Taiwan stocks
             symbols[code] = code.length <= 5 && !isNaN(code) ? `${code}.TW` : code;
         }
     });
@@ -143,38 +141,49 @@ async function fetchMarketData() {
     const results = {};
     const fetchPromises = Object.entries(symbols).map(async ([key, symbol]) => {
         try {
-            // Using allorigins proxy to bypass CORS
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=2d`)}`;
-            const response = await fetch(proxyUrl);
-            const data = await response.json();
-            const json = JSON.parse(data.contents);
+            // Using a more reliable CORS proxy
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=2d`;
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
             
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error('Proxy down');
+            
+            const json = await response.json();
+            if (!json.chart || !json.chart.result) throw new Error('Invalid data');
+
             const meta = json.chart.result[0].meta;
             const quote = json.chart.result[0].indicators.quote[0];
             const price = meta.regularMarketPrice;
             const prevClose = meta.previousClose;
             const change = price - prevClose;
             const changePercent = (change / prevClose) * 100;
-            const volume = quote.volume[quote.volume.length - 1];
-            const high = quote.high[quote.high.length - 1];
-            const low = quote.low[quote.low.length - 1];
+            
+            // Get latest volume/high/low safely
+            const vArr = quote.volume || [];
+            const hArr = quote.high || [];
+            const lArr = quote.low || [];
+            
+            const volume = vArr[vArr.length - 1] || 0;
+            const high = hArr[hArr.length - 1] || price;
+            const low = lArr[lArr.length - 1] || price;
 
             results[key] = {
                 val: price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 chg: `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent.toFixed(2)}%)`,
                 up: change >= 0,
-                volume: volume ? (volume / 1000000).toFixed(2) + 'M' : '--',
-                range: `${low?.toFixed(2)} - ${high?.toFixed(2)}`
+                volume: volume > 0 ? (volume / 1000000).toFixed(2) + 'M' : '--',
+                range: `${low.toFixed(2)} - ${high.toFixed(2)}`
             };
         } catch (err) {
-            console.error(`Error fetching ${symbol}:`, err);
-            results[key] = { val: 'Error', chg: '--', up: true };
+            console.warn(`Fetch failed for ${symbol}, using placeholder.`, err);
+            results[key] = { val: 'Offline', chg: '--', up: true, volume: '--', range: '--' };
         }
     });
 
     await Promise.all(fetchPromises);
     state.marketData = results;
     updateMarketUI();
+    renderStocks(); // Ensure table updates with live data
 }
 
 function updateMarketUI() {
@@ -218,9 +227,9 @@ function renderStocks() {
         // We'll update fetchMarketData to include selected symbols.
         
         let liveVal = state.marketData[stock.code];
-        let latestPrice = liveVal ? parseFloat(liveVal.val.replace(/,/g, '')) : parseFloat(stock.price);
+        let currentPrice = liveVal && liveVal.val !== 'Offline' ? parseFloat(liveVal.val.replace(/,/g, '')) : null;
         
-        const pnl = ((latestPrice - parseFloat(stock.price)) / parseFloat(stock.price)) * 100;
+        const pnl = currentPrice ? ((currentPrice - parseFloat(stock.price)) / parseFloat(stock.price)) * 100 : null;
         
         row.innerHTML = `
             <td>
@@ -230,11 +239,11 @@ function renderStocks() {
             <td>${stock.unit}</td>
             <td>
                 <div style="font-size: 0.85rem; color: var(--text-dim);">$${parseFloat(stock.price).toLocaleString()}</div>
-                <div style="font-weight: 700;">${liveVal ? '$' + latestPrice.toLocaleString() : '...'}</div>
+                <div style="font-weight: 700;">${currentPrice ? '$' + currentPrice.toLocaleString() : '...'}</div>
             </td>
             <td style="font-size: 0.9rem;">${liveVal ? liveVal.volume : '--'}</td>
             <td style="font-size: 0.8rem; color: var(--text-dim);">${liveVal ? liveVal.range : '--'}</td>
-            <td class="${pnl >= 0 ? 'up' : 'down'}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>
+            <td class="${pnl !== null ? (pnl >= 0 ? 'up' : 'down') : ''}">${pnl !== null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%' : '--'}</td>
         `;
         elements.stockTbody.appendChild(row);
     });
