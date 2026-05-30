@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Stock Intelligence</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login Overlay -->
+    <div id="login-overlay">
+        <div class="login-card">
+            <h2>Secure Access</h2>
+            <p style="color: var(--text-dim); margin-bottom: 2rem;">Enter your credentials to access the portfolio intelligence.</p>
+            <form id="login-form">
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="Passphrase" required>
+                </div>
+                <button type="submit" class="btn-primary">Authenticate</button>
+            </form>
+            <p id="login-error" style="color: var(--danger); margin-top: 1rem; display: none;">Invalid passphrase. Access denied.</p>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <main id="dashboard">
+        <header>
+            <div class="title-section">
+                <h1>Markets <span style="font-weight: 300; opacity: 0.7;">Pulse</span></h1>
+                <p id="current-date" style="color: var(--text-dim); font-size: 0.9rem;"></p>
+            </div>
+            <div class="header-actions">
+                <button id="open-settings" class="btn-secondary">Settings</button>
+            </div>
+        </header>
+
+        <!-- Market Overview Grid -->
+        <section class="top-grid">
+            <div class="index-card">
+                <div class="index-label">Nasdaq 100</div>
+                <div class="index-value" id="val-ndx">Loading...</div>
+                <div class="index-change" id="chg-ndx">--</div>
+            </div>
+            <div class="index-card">
+                <div class="index-label">S&P 500</div>
+                <div class="index-value" id="val-sp500">Loading...</div>
+                <div class="index-change" id="chg-sp500">--</div>
+            </div>
+            <div class="index-card">
+                <div class="index-label">VIX (Fear)</div>
+                <div class="index-value" id="val-vix">Loading...</div>
+                <div class="index-change" id="chg-vix">--</div>
+            </div>
+            <div class="index-card">
+                <div class="index-label">TAIEX</div>
+                <div class="index-value" id="val-taiex">Loading...</div>
+                <div class="index-change" id="chg-taiex">--</div>
+            </div>
+            <div class="index-card">
+                <div class="index-label">USD/TWD</div>
+                <div class="index-value" id="val-usdtwd">Loading...</div>
+                <div class="index-change" id="chg-usdtwd">--</div>
+            </div>
+        </section>
+
+        <!-- Main Content -->
+        <div class="content-area">
+            <section class="table-card">
+                <div class="table-header">
+                    <h2>Personal Portfolio</h2>
+                    <div id="table-stats" style="font-size: 0.9rem; color: var(--text-dim);"></div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Units</th>
+                                <th>Avg / Live</th>
+                                <th>Volume</th>
+                                <th>Daily Range</th>
+                                <th>PNL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-tbody">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="sidebar-section">
+                <!-- AI Leaders Card -->
+                <div class="glass-box">
+                    <h3 style="margin-bottom: 1rem;">AI Leaders</h3>
+                    <div id="ai-leaders-container" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <div class="leader-row" style="display: flex; justify-content: space-between;">
+                            <span>NVDA</span>
+                            <span id="val-nvda">--</span>
+                        </div>
+                        <div class="leader-row" style="display: flex; justify-content: space-between;">
+                            <span>TSMC</span>
+                            <span id="val-tsm">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LLM Actions -->
+                <div class="glass-box">
+                    <h3 style="margin-bottom: 1rem;">Portfolio Insights</h3>
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 1.5rem;">
+                        Analyze current market conditions and your portfolio data using our AI intelligence.
+                    </p>
+                    <button id="next-btn" class="btn-primary-large">NEXT →</button>
+                    
+                    <div id="ai-response" style="margin-top: 1.5rem; display: none;">
+                        <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                            <h4 style="margin-bottom: 0.5rem; color: var(--primary);">Intelligence Summary</h4>
+                            <div id="ai-text" style="font-size: 0.9rem; line-height: 1.6; color: var(--text-main);">
+                                Generating insights...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal">
+        <div class="modal-content">
+            <h3>Configuration</h3>
+            <p style="color: var(--text-dim); margin-bottom: 1.5rem;">Configure your intelligence settings.</p>
+            
+            <div style="margin-bottom: 2rem;">
+                <label style="display: block; font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-dim);">Gemini API Key (stored locally)</label>
+                <input type="password" id="api-key-input" placeholder="Enter Gemini API Key..." 
+                    style="width: 100%; padding: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 12px; color: white;">
+            </div>
+
+            <p style="color: var(--text-dim); margin-bottom: 0.5rem; font-size: 0.85rem;">Select assets to prioritize:</p>
+            <div id="settings-list" style="max-height: 250px; overflow-y: auto; margin-bottom: 2rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                <!-- Checkboxes added here -->
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                <button id="close-settings" class="btn-secondary">Close</button>
+                <button id="save-settings" class="btn-primary" style="width: auto; padding: 0.5rem 2rem;">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="prompts.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
