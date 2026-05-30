@@ -153,8 +153,16 @@ async function fetchMarketData() {
         try {
             const meta = json.chart.result[0].meta;
             const quote = json.chart.result[0].indicators.quote[0];
-            const price = meta.regularMarketPrice;
-            const prevClose = meta.previousClose || meta.chartPreviousClose || price;
+            const price = meta.regularMarketPrice || (quote.close ? quote.close[quote.close.length - 1] : 0);
+            
+            // Advanced fallback for Previous Close
+            let prevClose = meta.previousClose || meta.chartPreviousClose;
+            if (!prevClose && quote.close && quote.close.length > 1) {
+                // If meta is missing it, take the first data point from our 2-day range
+                prevClose = quote.close[0];
+            }
+            if (!prevClose) prevClose = price; // Absolute fallback
+
             const open = quote.open ? quote.open[quote.open.length - 1] : price;
             const high = quote.high ? quote.high[quote.high.length - 1] : price;
             const low = quote.low ? quote.low[quote.low.length - 1] : price;
