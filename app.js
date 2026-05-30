@@ -115,6 +115,9 @@ async function loadCSVData() {
         
         state.stocks = Array.from(latestMap.values());
         
+        // Dynamic categories for filter
+        populateCategoryFilter();
+        
         // Populate settings list with unique stocks from CSV
         renderSettings();
     } catch (err) {
@@ -210,6 +213,22 @@ function updateMarketUI() {
     elements.aiLeaders.nvda.className = state.marketData['NVDA'].up ? 'up' : 'down';
     elements.aiLeaders.tsm.textContent = `$${state.marketData['TSM'].val}`;
     elements.aiLeaders.tsm.className = state.marketData['TSM'].up ? 'up' : 'down';
+}
+
+function populateCategoryFilter() {
+    const cats1 = [...new Set(state.stocks.map(s => s.category_lvl1))];
+    const cats2 = [...new Set(state.stocks.map(s => s.category_lvl2))];
+    const allCats = [...new Set([...cats1, ...cats2])].filter(c => c && c !== '');
+    
+    const filter = document.getElementById('category-filter');
+    filter.innerHTML = '<option value="all">All Assets</option>';
+    
+    allCats.sort().forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        filter.appendChild(opt);
+    });
 }
 
 function renderStocks() {
