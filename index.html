@@ -67,14 +67,13 @@
         <div class="content-area">
             <section class="table-card">
                 <div class="table-header">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                         <h2>Portfolio Intelligence</h2>
-                        <select id="category-filter" class="btn-secondary" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white;">
-                            <option value="all">All Categories</option>
-                            <option value="ETF">ETF</option>
-                            <option value="科技">Technology</option>
-                            <option value="金融">Finance</option>
-                            <option value="傳產">Traditional</option>
+                        <select id="cat1-filter" class="filter-select">
+                            <option value="all">All Types</option>
+                        </select>
+                        <select id="cat2-filter" class="filter-select">
+                            <option value="all">All Sectors</option>
                         </select>
                     </div>
                     <div id="table-stats" style="font-size: 0.9rem; color: var(--text-dim);"></div>
@@ -86,10 +85,10 @@
                                 <th>Asset</th>
                                 <th>Open/Close</th>
                                 <th>High/Low</th>
-                                <th>Value (M)</th>
-                                <th>Volume</th>
-                                <th>PNL</th>
-                                <th>Status</th>
+                                <th class="sortable" data-col="value">Value (M) <span class="sort-icon">⇅</span></th>
+                                <th class="sortable" data-col="volume">Volume <span class="sort-icon">⇅</span></th>
+                                <th class="sortable" data-col="pnl">PNL <span class="sort-icon">⇅</span></th>
+                                <th>Category</th>
                             </tr>
                         </thead>
                         <tbody id="stock-tbody">

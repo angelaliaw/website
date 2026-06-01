@@ -242,6 +242,42 @@ td {
     cursor: pointer;
 }
 
+/* Category Filter Dropdowns */
+.filter-select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+.filter-select:focus {
+    border-color: var(--primary);
+}
+.filter-select option {
+    background: #1e293b;
+    color: white;
+}
+
+/* Sortable Table Headers */
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+}
+th.sortable:hover { color: var(--text-main); }
+th.sortable.sort-asc,
+th.sortable.sort-desc { color: var(--primary); }
+.sort-icon {
+    font-size: 0.75rem;
+    opacity: 0.6;
+    margin-left: 4px;
+}
+
 .btn-primary-large {
     width: 100%;
     padding: 1rem;
