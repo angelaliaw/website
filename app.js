@@ -424,8 +424,31 @@ elements.nextBtn.onclick = async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }] }] })
             });
+            
             const result = await response.json();
-            const aiText = result.candidates[0].content.parts[0].text;
+            
+            if (!response.ok) {
+                const errorMsg = result.error ? result.error.message : `HTTP Error ${response.status}`;
+                throw new Error(errorMsg);
+            }
+            
+            if (!result.candidates || result.candidates.length === 0) {
+                if (result.promptFeedback && result.promptFeedback.blockReason) {
+                    throw new Error(`Blocked by safety filter. Reason: ${result.promptFeedback.blockReason}`);
+                }
+                throw new Error("No responses (candidates) returned from Gemini.");
+            }
+            
+            const candidate = result.candidates[0];
+            if (candidate.finishReason && candidate.finishReason !== "STOP" && candidate.finishReason !== "MAX_TOKENS") {
+                throw new Error(`Generation incomplete. Reason: ${candidate.finishReason}`);
+            }
+            
+            if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+                throw new Error("Response content is empty.");
+            }
+            
+            const aiText = candidate.content.parts[0].text;
             elements.aiText.innerHTML = aiText.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         } catch (err) {
             elements.aiText.innerHTML = `<span style="color:var(--danger)">分析失敗: ${err.message}</span>`;

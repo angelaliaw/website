@@ -174,8 +174,9 @@ header {
     margin-top: 0.5rem;
 }
 
-.up { color: var(--success); }
-.down { color: var(--danger); }
+/* Taiwan Convention: Red = UP, Green = DOWN */
+.up { color: #ef4444; }   /* red */
+.down { color: #22c55e; } /* green */
 
 /* Table Section */
 .content-area {
